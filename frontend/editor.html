@@ -202,8 +202,8 @@
 <body>
 
 <div id="toolbar">
-  <label class="file-btn" id="json-label" for="json-input">JSON betöltése</label>
-  <input type="file" id="json-input" accept=".json">
+  <label class="file-btn" id="json-label" for="json-input">HTR betöltése (JSON / XML)</label>
+  <input type="file" id="json-input" accept=".json,.xml,.alto,.page">
 
   <label class="file-btn" id="img-label" for="img-input">Kép betöltése</label>
   <input type="file" id="img-input" accept="image/*">
@@ -335,30 +335,68 @@ outlineBtn.addEventListener('click', () => {
   if (viewMode === 'detail') updateDetailView();
 });
 
-// ── JSON loading ──────────────────────────────────────────────
+// ── HTR fájl betöltése (JSON kliens-oldalt, XML a backenden keresztül) ──
 document.getElementById('json-input').addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
+  const ext  = (file.name.split('.').pop() || '').toLowerCase();
+  const isJson = ext === 'json';
+  if (isJson) loadJsonFile(file);
+  else        loadViaBackend(file);
+});
+
+function loadJsonFile(file) {
   const reader = new FileReader();
   reader.onload = ev => {
     try {
-      data     = JSON.parse(ev.target.result);
-      origData = JSON.parse(ev.target.result);
-      edited.clear();
-      selected = null;
-      renderTextPanel();
-      updateOverlay();
-      updateStatus();
-      updateDetailView();
-      saveBtn.disabled = false;
-      document.getElementById('json-label').classList.add('loaded');
-      document.getElementById('json-label').textContent = file.name;
+      installPage(JSON.parse(ev.target.result), file.name);
     } catch(err) {
       alert('Hibás JSON fájl:\n' + err.message);
     }
   };
   reader.readAsText(file);
-});
+}
+
+async function loadViaBackend(file) {
+  // XML (ALTO / PAGE) → POST /api/convert
+  const label = document.getElementById('json-label');
+  const prev  = label.textContent;
+  label.textContent = 'Konvertálás…';
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch('/api/convert', { method: 'POST', body: form });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); if (j.detail) msg = j.detail; } catch(_) {}
+      throw new Error(msg);
+    }
+    const body = await res.json();
+    installPage(body.page, file.name);
+  } catch(err) {
+    label.textContent = prev;
+    // Tipikus eset: nincs backend (pl. file:// vagy más statikus szerver).
+    const hint = (window.location.protocol === 'file:')
+      ? '\n\nA XML konverzióhoz a backend kell. Indítsd el a backend/ mappából:\n  uvicorn app.main:app --reload\nés nyisd meg: http://localhost:8000'
+      : '';
+    alert('Konverziós hiba:\n' + err.message + hint);
+  }
+}
+
+function installPage(pageObj, filename) {
+  data     = pageObj;
+  origData = JSON.parse(JSON.stringify(pageObj));
+  edited.clear();
+  selected = null;
+  renderTextPanel();
+  updateOverlay();
+  updateStatus();
+  updateDetailView();
+  saveBtn.disabled = false;
+  const label = document.getElementById('json-label');
+  label.classList.add('loaded');
+  label.textContent = filename;
+}
 
 // ── Image loading ─────────────────────────────────────────────
 document.getElementById('img-input').addEventListener('change', e => {

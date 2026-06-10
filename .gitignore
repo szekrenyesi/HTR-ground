@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node (jövőbeni frontend toolinghoz)
+node_modules/
+dist/
+.parcel-cache/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*~
+
+# Lokális futtatási kimenetek
+*.log
+uploads/
+tmp/
