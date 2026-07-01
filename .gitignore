@@ -30,6 +30,6 @@ tmp/
 # Környezet-specifikus configok (a *_default.json változatok megvannak)
 backend/conf/auth.json
 
-# Projektek
-
+# Projektek — alapból nem kerülnek fel, kivéve a demónak szánt Arany mintát
 projects/*
+!projects/Minta/
