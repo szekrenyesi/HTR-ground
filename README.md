@@ -166,16 +166,19 @@ Drop files into `projects/<project>/<subproject>/…`:
 
 ```
 projects/
-├── Bakonykuti/
+├── Minta/                       # committed as a demo (see .gitignore)
 │   ├── 1949/
-│   │   ├── Bakonykuti_V1_049.jpg
-│   │   └── Bakonykuti_V1_049.json
+│   │   ├── Minta_V1_049.jpg
+│   │   └── Minta_V1_049.json
 │   └── 1950/
-│       ├── Bakonykuti_V1_050.jpg
-│       └── Bakonykuti_V1_050.alto.xml
-└── Egyeb/
-    └── …
+│       ├── Minta_V1_050.jpg
+│       └── Minta_V1_050.alto.xml
+└── …                            # your own projects, gitignored by default
 ```
+
+By default `.gitignore` excludes everything under `projects/` except for the
+`Minta/` sample folder, which is committed as a working demo. Your own
+projects stay local unless you explicitly add them.
 
 Pair detection groups files by basename, respecting compound extensions
 (`.alto.xml` and `.page.xml`). Image extensions: `.jpg`, `.jpeg`, `.png`,
