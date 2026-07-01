@@ -18,6 +18,7 @@ let dimContext  = true;   // sor kiemelése a kontextushoz képest (alapból be)
 const CONTRAST_STEPS = [1.0, 1.5, 2.0, 3.0];
 
 let loadedFilename = null;   // a betöltött fájl neve — mentés basename-jéhez
+let loadedImageBlob = null;  // a betöltött kép Blob-ja — PDF exporthoz kell
 
 // ─── Mód: 'demo' (feltöltés) vagy 'project' (szerver-oldali fájl) ─────
 const projectContext = readProjectContext();
@@ -181,7 +182,12 @@ function installPage(pageObj, filename) {
   }
 }
 
-function loadImageFromUrl(url, displayName) {
+async function loadImageFromUrl(url, displayName) {
+  // Blob is szükséges lehet a PDF exporthoz — fetch-el megszerezzük egyszer
+  try {
+    const res = await fetch(url);
+    if (res.ok) loadedImageBlob = await res.blob();
+  } catch (_) { /* nem kritikus, a PDF-nél derül ki */ }
   imgEl.onload = () => {
     imgW = imgEl.naturalWidth;
     imgH = imgEl.naturalHeight;
@@ -203,6 +209,7 @@ function loadImageFromUrl(url, displayName) {
 document.getElementById('img-input').addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
+  loadedImageBlob = file;
   const url = URL.createObjectURL(file);
   imgEl.onload = () => {
     imgW = imgEl.naturalWidth;
@@ -646,7 +653,33 @@ async function exportAndDownload(format, basename) {
     downloadBlob(blob, `${basename}.json`);
     return;
   }
-  // ALTO / PAGE: backend hívás
+
+  // PDF: kép + page multipart
+  if (format === 'pdf') {
+    if (!loadedImageBlob) {
+      alert('PDF exporthoz kell a képfájl is — tölts be egyet a "Kép betöltése" gombbal.');
+      return;
+    }
+    try {
+      const form = new FormData();
+      form.append('page', JSON.stringify(data));
+      form.append('image', loadedImageBlob, 'image');
+      form.append('basename', basename);
+      const res = await fetch('/api/export-pdf', { method: 'POST', body: form });
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { const j = await res.json(); if (j.detail) msg = j.detail; } catch(_) {}
+        throw new Error(msg);
+      }
+      const blob = await res.blob();
+      downloadBlob(blob, `${basename}.pdf`);
+    } catch (err) {
+      alert('PDF export hiba:\n' + err.message);
+    }
+    return;
+  }
+
+  // ALTO / PAGE: backend hívás JSON body-val
   try {
     const res = await fetch('/api/export', {
       method: 'POST',

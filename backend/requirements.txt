@@ -5,5 +5,8 @@ lxml>=5.1
 pydantic>=2.6
 # Session cookie aláíráshoz (starlette SessionMiddleware)
 itsdangerous>=2.1
+# Kétrétegű PDF exporthoz (invisible text overlay)
+fpdf2>=2.7
+Pillow>=10.0
 pytest>=8.0
 httpx>=0.27

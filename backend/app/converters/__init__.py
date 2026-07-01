@@ -11,7 +11,7 @@ from __future__ import annotations
 import json as _json
 from typing import Optional
 from ..schema import Page
-from . import alto, page as page_xml, htr_json, to_alto, to_page
+from . import alto, page as page_xml, htr_json, to_alto, to_page, to_pdf
 
 
 class UnknownFormatError(ValueError):

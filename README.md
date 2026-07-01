@@ -310,6 +310,31 @@ theme layered on Bootstrap 5.3 from CDN.
 
 ---
 
+## PDF export (searchable / two-layer)
+
+`POST /api/export-pdf` builds a searchable PDF by combining the image with an
+invisible text layer positioned at each line's baseline. The PDF text is
+extractable with `pdftotext` and is selectable in any viewer, but stays
+visually hidden behind the image.
+
+Requires a Unicode TrueType font. The default location is
+`fonts/EBGaramond-Regular.ttf`; override via the `HTR_GROUND_FONT` env var.
+Download the default:
+
+```bash
+mkdir -p fonts && curl -L -o fonts/EBGaramond-Regular.ttf \
+    https://github.com/octaviopardo/EBGaramond12/raw/master/fonts/ttf/EBGaramond-Regular.ttf
+```
+
+If the font is missing, the endpoint returns HTTP 500 with a clear message —
+the other export formats (JSON / ALTO / PAGE) work regardless.
+
+The image is downscaled to 1500 px width and re-encoded as JPEG (quality 78)
+before embedding, so page PDFs typically fall in the 100–500 kB range even
+for high-resolution scans.
+
+---
+
 ## Development notes
 
 - **Two configs**, both with `_default.json` templates:

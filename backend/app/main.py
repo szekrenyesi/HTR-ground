@@ -18,6 +18,7 @@ Endpoint-ok:
 """
 from __future__ import annotations
 
+import json as _json
 from pathlib import Path
 from typing import Optional
 
@@ -34,6 +35,7 @@ from .converters import (
     convert,
     detect_format,
     export as export_page,
+    to_pdf,
 )
 from .projects import (
     PROJECTS_ROOT,
@@ -278,6 +280,50 @@ async def api_export(payload: dict = Body(...)):
     return Response(
         content=content,
         media_type=EXPORT_MIME[fmt],
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ─── Kétrétegű PDF export ────────────────────────────────────────────────
+@app.post("/api/export-pdf")
+async def api_export_pdf(
+    page: str = Form(..., description="Page JSON string"),
+    image: UploadFile = File(..., description="Az oldal képfájlja"),
+    basename: Optional[str] = Form(None),
+):
+    """
+    Kétrétegű, kereshető PDF export.
+
+    Bemenet multipart:
+      - `page`:     Page objektum JSON stringként
+      - `image`:    az oldal képfájlja (jpg/png/…)
+      - `basename`: opcionális, a letöltési fájlnév alapja
+    """
+    try:
+        page_data = _json.loads(page)
+    except _json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"Hibás page JSON: {e}")
+    try:
+        page_obj = Page.model_validate(page_data)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Érvénytelen Page: {e}")
+
+    image_bytes = await image.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Üres képfájl.")
+
+    try:
+        pdf_bytes = to_pdf.export(page_obj, image_bytes)
+    except RuntimeError as e:
+        # Hiányzó font vagy hasonló infrastruktúra-hiba
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF export hiba: {e}")
+
+    filename = f"{basename or 'corrected'}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
