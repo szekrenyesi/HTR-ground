@@ -29,10 +29,17 @@ A demó / playground a végleges verzióban is benne marad — egy belépési po
 ```
 HTR-ground/
 ├── frontend/
-│   └── editor.html              # vanilla HTML/CSS/JS szerkesztő
+│   ├── landing.html             # kezdőoldal, két kártya (Demó / Projektek), Bootstrap
+│   ├── login.html               # közös jelszós belépőoldal, Bootstrap
+│   ├── editor.html              # DOM váz (toolbar + két panel), CSS/JS betöltés
+│   ├── editor.css               # összes stílus (sötét téma, layout, komponensek)
+│   └── editor.js                # összes logika (állapot, betöltés, zoom, szűrők, mentés)
 ├── backend/
+│   ├── conf/
+│   │   └── auth_default.json    # közös jelszó + session titok templát; auth.json .gitignore
 │   ├── app/
-│   │   ├── main.py              # FastAPI app, route-ok
+│   │   ├── main.py              # FastAPI app, route-ok, session middleware, landing/demo/login
+│   │   ├── auth.py              # közös jelszó betöltés, verify_password, session helper
 │   │   ├── schema.py            # Page / Region / Line Pydantic modell
 │   │   └── converters/
 │   │       ├── __init__.py      # detect_format + dispatch
@@ -146,7 +153,7 @@ A két nézet közt a jobb felső `Részlet nézet` / `Oldal nézet` gomb vált.
 - **Sötét téma**, sárga az „aktív/szerkesztett" jelzés, kék az „interaktív elem" (sor poligon), piros szaggatott a régió.
 - A felület **magyar nyelvű**.
 - Vanilla JS, **nincs build lépés** — közvetlenül megnyitható böngészőben (`file://` is működik kliens-oldali JSON-hoz).
-- Egyetlen fájl: stílus, markup és JS mind az `editor.html`-ben. Egyelőre szándékos, hogy gyors a vasprototípus. Ha túlnő, akkor majd splittelünk.
+- **Három fájl:** `editor.html` (DOM), `editor.css` (stílus), `editor.js` (logika). Relatív hivatkozás a HTML-ből (`href="editor.css"`, `src="editor.js"`), így `file://` módban a fájlrendszerről tölt, backenddel pedig a `/editor.css` és `/editor.js` route-ok (`app/main.py`) szolgálják ki.
 - A koordináták és poligonok **a kép natív pixelterében** vannak; minden képernyő-skálázás a `currentEffectiveZoom()` / `scale` faktorokkal történik.
 - A backend hívás **relatív URL**-ekkel megy (`fetch('/api/convert')`), így mindegy melyik domainen fut.
 

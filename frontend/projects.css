@@ -1,0 +1,96 @@
+/* Projects browser — sötét téma Bootstrap tetején */
+body {
+  background: #13141a;
+  color: #d8d8e0;
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+.navbar-dark-custom {
+  background: #1c1d26; border-bottom: 1px solid #2a2b3a;
+}
+.brand {
+  font-weight: 600; color: #d8d8e0; letter-spacing: 0.5px;
+  text-decoration: none;
+}
+.brand:hover { color: #f0d060; }
+.login-status { font-size: 12px; color: #888; }
+.btn-link-plain {
+  color: #7dcc9a; text-decoration: none; font-size: 12px;
+}
+.btn-link-plain:hover { color: #a5d9ba; }
+
+main {
+  flex: 1; padding: 24px 15px 40px;
+}
+
+/* Breadcrumb */
+.breadcrumb-wrap {
+  background: #1c1d26; border: 1px solid #2a2b3a; border-radius: 6px;
+  padding: 10px 14px; margin-bottom: 20px; font-size: 13px;
+}
+.breadcrumb-wrap a { color: #7dcc9a; text-decoration: none; }
+.breadcrumb-wrap a:hover { color: #a5d9ba; }
+.breadcrumb-wrap .sep { color: #444; margin: 0 6px; }
+.breadcrumb-wrap .current { color: #d8d8e0; font-weight: 500; }
+
+/* Section header */
+.section-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+  color: #666; text-transform: uppercase;
+  padding-bottom: 6px; border-bottom: 1px solid #25263a;
+  margin: 24px 0 12px;
+}
+.section-title:first-child { margin-top: 0; }
+
+.section-empty {
+  color: #444; font-size: 13px; font-style: italic;
+  padding: 12px 0 4px;
+}
+
+/* Item cards */
+.item-list { display: grid; gap: 8px; }
+.item {
+  background: #1c1d26; border: 1px solid #2a2b3a; border-radius: 6px;
+  padding: 12px 14px;
+  display: flex; align-items: center; gap: 12px;
+  text-decoration: none; color: inherit;
+  transition: background 0.1s, border-color 0.1s;
+  cursor: pointer;
+}
+.item:hover {
+  background: #25263a; border-color: #4a4c6a; color: #d8d8e0;
+}
+.item .icon {
+  flex: 0 0 auto; font-size: 22px; opacity: 0.9;
+  width: 32px; text-align: center;
+}
+.item .meta {
+  flex: 1; min-width: 0;
+}
+.item .name {
+  font-size: 14px; color: #d8d8e0; margin: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.item .sub {
+  font-size: 11px; color: #666; margin-top: 3px;
+  display: flex; gap: 12px; flex-wrap: wrap;
+}
+.item .sub .badge-fmt {
+  background: #25263a; color: #7dcc9a; border: 1px solid #35364a;
+  border-radius: 3px; padding: 1px 6px; font-size: 10px; font-weight: 500;
+  letter-spacing: 0.3px;
+}
+.item .sub .warn {
+  color: #e88484;
+}
+.item .modified {
+  flex: 0 0 auto; font-size: 11px; color: #666;
+  white-space: nowrap;
+}
+
+/* Loading / error state */
+.state-msg {
+  color: #666; font-size: 13px; padding: 24px 0; text-align: center;
+}
+.state-msg.error { color: #e88484; }

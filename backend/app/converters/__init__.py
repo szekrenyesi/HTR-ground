@@ -8,13 +8,41 @@ Használat:
 """
 from __future__ import annotations
 
+import json as _json
 from typing import Optional
 from ..schema import Page
-from . import alto, page as page_xml, htr_json
+from . import alto, page as page_xml, htr_json, to_alto, to_page
 
 
 class UnknownFormatError(ValueError):
     pass
+
+
+# ─── Export dispatch ─────────────────────────────────────────────────────
+# format: "json" | "alto-xml" | "page-xml"
+def export(page: Page, format: str, *, image_filename: str = "") -> bytes:
+    if format == "json":
+        return _json.dumps(
+            page.model_dump(exclude_none=True), ensure_ascii=False, indent=2
+        ).encode("utf-8")
+    if format == "alto-xml":
+        return to_alto.export(page)
+    if format == "page-xml":
+        return to_page.export(page, image_filename=image_filename)
+    raise UnknownFormatError(f"Ismeretlen export formátum: {format!r}")
+
+
+EXPORT_MIME = {
+    "json":     "application/json; charset=utf-8",
+    "alto-xml": "application/xml; charset=utf-8",
+    "page-xml": "application/xml; charset=utf-8",
+}
+
+EXPORT_EXT = {
+    "json":     ".json",
+    "alto-xml": ".alto.xml",
+    "page-xml": ".page.xml",
+}
 
 
 def detect_format(data: bytes, filename: Optional[str] = None) -> str:

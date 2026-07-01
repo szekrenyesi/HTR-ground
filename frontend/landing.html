@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <title>HTR-ground</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: #13141a;
+      color: #d8d8e0;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .navbar-dark-custom {
+      background: #1c1d26; border-bottom: 1px solid #2a2b3a;
+    }
+    .brand {
+      font-weight: 600; color: #d8d8e0; letter-spacing: 0.5px;
+    }
+    main {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      padding: 30px 15px;
+    }
+    .mode-card {
+      background: #1c1d26; border: 1px solid #2a2b3a; border-radius: 10px;
+      padding: 32px 28px; text-align: center; color: #d8d8e0;
+      transition: transform 0.15s, border-color 0.15s, background 0.15s;
+      text-decoration: none; display: block; height: 100%;
+    }
+    .mode-card:hover {
+      background: #25263a; border-color: #4a4c6a;
+      transform: translateY(-2px); color: #f0d060;
+    }
+    .mode-card .emoji {
+      font-size: 44px; margin-bottom: 12px;
+    }
+    .mode-card h2 {
+      font-size: 20px; font-weight: 600; margin-bottom: 8px; color: #d8d8e0;
+    }
+    .mode-card:hover h2 { color: #f0d060; }
+    .mode-card p {
+      font-size: 13px; color: #888; margin: 0; line-height: 1.55;
+    }
+    .login-status {
+      font-size: 12px; color: #888;
+    }
+    .btn-link-plain {
+      color: #7dcc9a; text-decoration: none; font-size: 12px;
+    }
+    .btn-link-plain:hover { color: #a5d9ba; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark-custom px-3">
+  <span class="brand">HTR-ground</span>
+  <span id="login-status" class="login-status"></span>
+</nav>
+
+<main>
+  <div class="container">
+    <div class="row justify-content-center g-3">
+      <div class="col-md-5">
+        <a href="/demo" class="mode-card">
+          <div class="emoji">🧪</div>
+          <h2>Demó / Játszótér</h2>
+          <p>Tölts fel saját gépről egy kép–átirat párt (JSON&nbsp;/ ALTO XML / PAGE XML), szerkeszd, majd töltsd le a javított változatot. Nem kell belépés.</p>
+        </a>
+      </div>
+      <div class="col-md-5">
+        <a href="/projects" class="mode-card">
+          <div class="emoji">📁</div>
+          <h2>Projektek</h2>
+          <p>A szerveren tárolt projektek böngészése és szerkesztése. Mentéskor a fájl a helyén frissül. Belépés szükséges.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+// Belépési állapot lekérdezése — a Projektek kártya kap egy „be van lépve" jelzést
+fetch('/api/session').then(r => r.json()).then(info => {
+  const el = document.getElementById('login-status');
+  if (info.authenticated) {
+    el.innerHTML = 'Be van lépve · <a href="#" class="btn-link-plain" id="logout-link">Kilépés</a>';
+    document.getElementById('logout-link').addEventListener('click', async ev => {
+      ev.preventDefault();
+      await fetch('/logout', { method: 'POST' });
+      window.location.reload();
+    });
+  } else {
+    el.innerHTML = '<a href="/login" class="btn-link-plain">Belépés</a>';
+  }
+}).catch(() => {});
+</script>
+
+</body>
+</html>
