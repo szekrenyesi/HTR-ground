@@ -29,3 +29,7 @@ tmp/
 
 # Környezet-specifikus configok (a *_default.json változatok megvannak)
 backend/conf/auth.json
+
+# Projektek
+
+projects/*
