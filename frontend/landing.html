@@ -50,6 +50,21 @@
       color: #7dcc9a; text-decoration: none; font-size: 12px;
     }
     .btn-link-plain:hover { color: #a5d9ba; }
+
+    /* Lábléc (copyright + licenc) */
+    .site-footer {
+      flex-shrink: 0;
+      padding: 14px 20px;
+      border-top: 1px solid #2a2b3a;
+      background: #16171f;
+      font-size: 11px; color: #666;
+      text-align: center;
+    }
+    .site-footer a {
+      color: #7dcc9a; text-decoration: none;
+    }
+    .site-footer a:hover { color: #a5d9ba; }
+    .site-footer .sep { color: #333; margin: 0 8px; }
   </style>
 </head>
 <body>
@@ -79,6 +94,14 @@
     </div>
   </div>
 </main>
+
+<footer class="site-footer">
+  © 2026 Szekrényes István
+  <span class="sep">·</span>
+  <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noopener">GNU GPL v3</a>
+  <span class="sep">·</span>
+  <a href="https://github.com/szekrenyesi/HTR-ground" target="_blank" rel="noopener">GitHub</a>
+</footer>
 
 <script>
 // Belépési állapot lekérdezése — a Projektek kártya kap egy „be van lépve" jelzést

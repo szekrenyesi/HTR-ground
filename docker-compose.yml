@@ -1,0 +1,58 @@
+# HTR-ground — compose config perzisztens mount-okkal.
+#
+# Első futáshoz:
+#   1. Hozd létre a docker-data/ mappa-fát a repo mellé
+#      (a bind mount-ok innen jönnek):
+#        docker-data/
+#        ├── conf/            (üres, ide jön az auth.json)
+#        ├── projects/        (ide teszed a korpuszaidat)
+#        └── fonts/           (opcionális)
+#
+#   2. Építsd az image-t:
+#        docker compose build
+#
+#   3. Bootstrap az admin usert (egyszer, a jelszó a terminálra íródik):
+#        docker compose run --rm app python -m app.users bootstrap --generate
+#
+#   4. Indítsd:
+#        docker compose up -d
+#
+#   5. Nyisd:
+#        http://<host>:8000
+#
+# További admin: `docker compose exec app python -m app.users add ...`
+
+services:
+  app:
+    build: .
+    image: htr-ground:latest
+    container_name: htr-ground
+    restart: unless-stopped
+
+    ports:
+      # Ha reverse proxy elé (nginx/Caddy/Traefik) teszed, csak localhost-ra bindolj:
+      #   - "127.0.0.1:8000:8000"
+      - "8000:8000"
+
+    volumes:
+      # Config: userek, ACL, session secret — a bootstrap ide írja az auth.json-t
+      - ${HTR_CONF_DIR:-./docker-data/conf}:/app/backend/conf
+
+      # A tényleges korpusz — képek, annotációk, sidecarok
+      - ${HTR_PROJECTS_DIR:-./docker-data/projects}:/app/projects
+
+    # A font (EBGaramond-Regular.ttf a PDF exporthoz) az image-ben van.
+    # Ha egyéni fontra váltanál, mountold be a saját ttf-et pl. így:
+    #   volumes:
+    #     - ./sajat-font.ttf:/app/fonts/EBGaramond-Regular.ttf
+    #
+    # A path-ok override-olhatók egy .env fájllal a compose mellett, pl.:
+    #   HTR_CONF_DIR=/srv/htr-ground/conf
+    #   HTR_PROJECTS_DIR=/srv/htr-ground/projects
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health').read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

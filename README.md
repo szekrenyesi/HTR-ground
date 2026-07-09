@@ -90,6 +90,87 @@ Open <http://localhost:8000>. The landing page has two cards:
 
 Tests: `pytest -q` from the `backend/` folder.
 
+## Docker deployment
+
+For deploying on an older server (or anywhere Docker runs), the repo ships a
+`Dockerfile` and `docker-compose.yml`. Config and data are bind-mounted from
+`./docker-data/` so backup is one `tar` command away.
+
+By default the mounts point at `./docker-data/` next to the repo:
+
+```
+docker-data/
+├── conf/                    # auth.json (created by bootstrap)
+└── projects/                # your corpus (images + annotations + sidecars)
+```
+
+If you want them elsewhere (e.g. `/srv/htr-ground/`), copy `.env.example`
+to `.env` next to the compose file and override:
+
+```bash
+cp .env.example .env
+# then edit:
+#   HTR_CONF_DIR=/srv/htr-ground/conf
+#   HTR_PROJECTS_DIR=/srv/htr-ground/projects
+```
+
+The PDF export font is baked into the image; only override it with a
+mount if you want a different typeface.
+
+### First run
+
+```bash
+# 1. Create the mount directories (adjust paths if you set them in .env)
+mkdir -p docker-data/{conf,projects}
+
+# 2. Build the image
+docker compose build
+
+# 3. Bootstrap the admin user — the password is printed once
+docker compose run --rm app python -m app.users bootstrap --generate
+
+# 4. Start the server
+docker compose up -d
+```
+
+Open <http://localhost:8000> — or your server's URL if remote.
+
+### User management inside the container
+
+```bash
+docker compose exec app python -m app.users list
+docker compose exec app python -m app.users add anna "Kovács Anna" --generate
+docker compose exec app python -m app.users set-password anna --generate
+```
+
+### Backup
+
+Everything persistent lives under `docker-data/`. To back up:
+
+```bash
+tar czf htr-ground-backup-$(date +%Y%m%d).tgz docker-data/
+```
+
+Restore = untar to the same layout, then `docker compose up -d`.
+
+### HTTPS / reverse proxy
+
+The compose file exposes port 8000 as plain HTTP. Put nginx / Caddy /
+Traefik in front for TLS termination. If you do, bind the port only to
+localhost inside `docker-compose.yml`:
+
+```yaml
+ports:
+  - "127.0.0.1:8000:8000"
+```
+
+### Presence and workers
+
+Presence is in-memory in the FastAPI process. The compose config uses a
+single worker (`--workers 1`) — do not increase this without moving the
+tracker to Redis or similar shared store. For a small team on one server,
+a single worker is plenty.
+
 ### Managing users
 
 Everything happens via `python -m app.users`. There is no admin UI — the

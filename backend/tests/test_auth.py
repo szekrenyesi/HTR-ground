@@ -49,6 +49,23 @@ def test_get_user_missing():
     assert auth.get_user("nincsilyen") is None
 
 
+def test_no_config_falls_back_to_empty(tmp_path):
+    """Fresh install (üres conf mappa) esetén a szerver elindul, csak
+    warning-ot ad — nem fatal error."""
+    import warnings
+    original_conf_dir = auth.CONF_DIR
+    auth.CONF_DIR = tmp_path
+    try:
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            cfg = auth.load_auth_config()
+        assert cfg["users"] == {}
+        assert cfg["projects"] == {}
+        assert any("bootstrap" in str(warning.message) for warning in w)
+    finally:
+        auth.CONF_DIR = original_conf_dir
+
+
 def test_legacy_shape_rejected(tmp_path):
     """A régi v1 (van `password`, nincs `users`) shape-et explicit hibaüzenettel utasítjuk el."""
     import json

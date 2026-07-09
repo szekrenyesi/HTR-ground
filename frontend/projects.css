@@ -159,3 +159,17 @@ main {
   color: #666; font-size: 13px; padding: 24px 0; text-align: center;
 }
 .state-msg.error { color: #e88484; }
+
+/* Lábléc */
+.site-footer {
+  flex-shrink: 0;
+  padding: 14px 20px;
+  border-top: 1px solid #2a2b3a;
+  background: #16171f;
+  font-size: 11px; color: #666;
+  text-align: center;
+  margin-top: 40px;
+}
+.site-footer a { color: #7dcc9a; text-decoration: none; }
+.site-footer a:hover { color: #a5d9ba; }
+.site-footer .sep { color: #333; margin: 0 8px; }

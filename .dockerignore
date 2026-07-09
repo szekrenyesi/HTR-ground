@@ -1,0 +1,27 @@
+# Ne kerüljön az image-be:
+.git
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Python cache / virtualenv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.venv
+**/venv
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+
+# Perzisztens adatok — ezek bind mount-tal jönnek
+docker-data/
+projects/
+backend/conf/auth.json
+
+# Tesztek: bekerülhetnek, ha egyszer container-belül szeretnéd őket futtatni,
+# egyébként megspóroljuk a helyet
+backend/tests/

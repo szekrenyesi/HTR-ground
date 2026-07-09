@@ -54,12 +54,29 @@ def _config_paths() -> tuple[Path, Path]:
     return CONF_DIR / AUTH_FILENAME, CONF_DIR / DEFAULT_FILENAME
 
 
+def _empty_default_config() -> dict:
+    """Fresh install fallback — a server elindul, csak nem lehet belépni,
+    amíg `python -m app.users bootstrap` le nem fut."""
+    return {
+        "session_cookie_name":     "htrground_session",
+        "session_max_age_seconds": 604800,
+        "users":                   {},
+        "projects":                {},
+    }
+
+
 def load_auth_config() -> dict:
-    """Preferálja az `auth.json`-t, fallback: `auth_default.json`.
+    """Preferálja az `auth.json`-t, fallback: `auth_default.json`, végső
+    esetben üres in-memory config.
 
     A régi (v1) shape-et (van `password`, nincs `users`) explicit hibaüzenettel
     utasítja el — ezzel elkerülhető, hogy egy elavult telepítés csendben úgy
     induljon, hogy senki nem tud belépni.
+
+    Ha egyik fájl sem található, üres alapokat adunk vissza egy warning
+    kíséretében. Ez engedi, hogy a Docker fresh mount / új telepítés
+    esetén a szerver egyáltalán fel tudjon indulni, hogy a bootstrap CLI
+    lefuthasson.
     """
     auth_path, default_path = _config_paths()
 
@@ -78,9 +95,16 @@ def load_auth_config() -> dict:
         with default_path.open(encoding="utf-8") as fh:
             return json.load(fh)
 
-    raise AuthConfigError(
-        f"Sem {AUTH_FILENAME}, sem {DEFAULT_FILENAME} nem található itt: {CONF_DIR}"
+    # Fresh install / üres mounted conf — csak warning, nem fatal.
+    import warnings
+    warnings.warn(
+        f"Nem található config a {CONF_DIR} alatt. A szerver elindul, "
+        "de belépés nem lesz lehetséges, amíg le nem futtatod: "
+        "python -m app.users bootstrap",
+        RuntimeWarning,
+        stacklevel=2,
     )
+    return _empty_default_config()
 
 
 def save_auth_config(cfg: dict) -> None:
