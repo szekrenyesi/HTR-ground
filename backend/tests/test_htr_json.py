@@ -1,33 +1,47 @@
 """
-Belső JSON pass-through teszt: a referencia JSON-t betöltjük és visszakapjuk.
+Belső JSON pass-through tesztek.
+
+Nem külső fájlból dolgozunk — a Page sémából egyenest generálunk egy minimál
+struktúrát, hogy ne függjünk fixture-ektől.
 """
 import json
-from pathlib import Path
-
-import pytest
 
 from app.converters import htr_json, convert, detect_format
 
 
-EXAMPLES = Path(__file__).resolve().parent.parent.parent / "examples"
-JSON_FILE = EXAMPLES / "Bakonykuti_V1_049.json"
+SAMPLE_PAGE = {
+    "regions": [
+        {
+            "coords": [[0.0, 0.0], [100.0, 0.0], [100.0, 100.0], [0.0, 100.0]],
+            "rect":   [0.0, 0.0, 100.0, 100.0],
+            "lines": [
+                {
+                    "coords": [[10.0, 10.0], [50.0, 10.0], [50.0, 30.0], [10.0, 30.0]],
+                    "rect":   [10.0, 10.0, 40.0, 20.0],
+                    "baseline": [[10.0, 30.0], [50.0, 30.0]],
+                    "text": "Példa szöveg",
+                }
+            ],
+        }
+    ],
+    "image_width":  200,
+    "image_height": 300,
+}
 
 
-@pytest.fixture(scope="module")
-def json_bytes() -> bytes:
-    return JSON_FILE.read_bytes()
+def test_detect_json():
+    data = json.dumps(SAMPLE_PAGE).encode("utf-8")
+    assert detect_format(data, "x.json") == "json"
 
 
-def test_detect_json(json_bytes):
-    assert detect_format(json_bytes, "x.json") == "json"
+def test_json_parses():
+    data = json.dumps(SAMPLE_PAGE).encode("utf-8")
+    page = htr_json.parse(data)
+    assert len(page.regions) == 1
+    assert page.regions[0].lines[0].text == "Példa szöveg"
 
 
-def test_json_parses(json_bytes):
-    page = htr_json.parse(json_bytes)
-    assert len(page.regions) >= 1
-    assert page.regions[0].lines[0].text == "1756"
-
-
-def test_convert_dispatch_json(json_bytes):
-    page = convert(json_bytes, filename="x.json")
+def test_convert_dispatch_json():
+    data = json.dumps(SAMPLE_PAGE).encode("utf-8")
+    page = convert(data, filename="x.json")
     assert page.source_format == "json"

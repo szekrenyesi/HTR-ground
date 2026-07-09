@@ -82,10 +82,17 @@
 
 <script>
 // Belépési állapot lekérdezése — a Projektek kártya kap egy „be van lépve" jelzést
+function esc(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  })[c]);
+}
 fetch('/api/session').then(r => r.json()).then(info => {
   const el = document.getElementById('login-status');
   if (info.authenticated) {
-    el.innerHTML = 'Be van lépve · <a href="#" class="btn-link-plain" id="logout-link">Kilépés</a>';
+    const name = info.display_name || info.username;
+    const adminTag = info.is_admin ? ' <span title="admin" style="color:#f0d060;">★</span>' : '';
+    el.innerHTML = `Belépve mint <strong style="color:#d8d8e0;">${esc(name)}</strong>${adminTag} · <a href="#" class="btn-link-plain" id="logout-link">Kilépés</a>`;
     document.getElementById('logout-link').addEventListener('click', async ev => {
       ev.preventDefault();
       await fetch('/logout', { method: 'POST' });
