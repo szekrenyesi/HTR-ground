@@ -743,6 +743,60 @@ function flashStatus(msg, kind) {
   setTimeout(() => { statusEl.textContent = prev; statusEl.className = prevCls; updateStatus(); }, 2000);
 }
 
+// ─── Presence: heartbeat + concurrent-editor warning ────────────
+const HEARTBEAT_INTERVAL_MS = 25000;
+let heartbeatTimer = null;
+
+async function checkPresenceBeforeOpen() {
+  // Ha van másik aktív user, konfirmáljunk (Anna itt van — biztos folytatod?)
+  try {
+    const q = new URLSearchParams({ path: projectContext.path, basename: projectContext.basename });
+    const res = await fetch(`/api/presence?${q}`);
+    if (!res.ok) return true; // presence hiba nem blokkolja a betöltést
+    const body = await res.json();
+    if (!body.others || !body.others.users || !body.others.users.length) return true;
+    const names = body.others.users.map(u => u.username).join(', ');
+    const msg = body.others.users.length === 1
+      ? `${names} épp ezt a fájlt szerkeszti. Biztos folytatod? (Az utolsó mentés győz.)`
+      : `${names} épp ezt a fájlt szerkeszti. Biztos folytatod? (Az utolsó mentés győz.)`;
+    return window.confirm(msg);
+  } catch (_) {
+    return true;
+  }
+}
+
+async function sendHeartbeat() {
+  if (!projectContext) return;
+  try {
+    await fetch('/api/presence/heartbeat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: projectContext.path, basename: projectContext.basename }),
+    });
+  } catch (_) { /* offline / hálózat kimarad — nem baj */ }
+}
+
+function startHeartbeat() {
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  sendHeartbeat();
+  heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
+}
+
+function stopHeartbeatAndLeave() {
+  if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+  if (!projectContext) return;
+  const payload = JSON.stringify({ path: projectContext.path, basename: projectContext.basename });
+  // sendBeacon: page unload alatt is megbízhatóan kimegy
+  if (navigator.sendBeacon) {
+    const blob = new Blob([payload], { type: 'application/json' });
+    navigator.sendBeacon('/api/presence/leave', blob);
+  } else {
+    fetch('/api/presence/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
+  }
+}
+
+window.addEventListener('beforeunload', stopHeartbeatAndLeave);
+
 // ─── Projekt mód: inicializálás ─────────────────────────────────
 async function initProjectMode() {
   if (!projectContext) return;
@@ -757,6 +811,15 @@ async function initProjectMode() {
   saveBtn.textContent = 'Mentés';
   exportBtn.style.display = 'inline-flex';
   saveMenuHint.textContent = 'Export letöltésként';
+
+  // Ha valaki már itt van, konfirmáljunk mielőtt beltöltjük
+  const proceed = await checkPresenceBeforeOpen();
+  if (!proceed) {
+    // Vissza a projekt-mappához
+    const back = projectContext.path ? `/projects/${projectContext.path}` : '/projects';
+    window.location.href = back;
+    return;
+  }
 
   // Autoload a projekt-fájl
   try {
@@ -788,6 +851,9 @@ async function initProjectMode() {
     if (body.image_url) {
       loadImageFromUrl(body.image_url, body.image_filename);
     }
+
+    // Heartbeat indítás — mostantól bekerülünk a presence-be
+    startHeartbeat();
   } catch (err) {
     alert('Betöltési hiba:\n' + err.message);
   }
