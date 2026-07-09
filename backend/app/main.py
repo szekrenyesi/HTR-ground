@@ -27,7 +27,14 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from .auth import AUTH_CONFIG, is_authenticated, require_auth, require_auth_or_redirect, verify_password
+from .auth import (
+    AUTH_CONFIG,
+    is_authenticated,
+    require_auth,
+    require_auth_or_redirect,
+    session_info,
+    verify_credentials,
+)
 from .converters import (
     EXPORT_EXT,
     EXPORT_MIME,
@@ -39,12 +46,16 @@ from .converters import (
 )
 from .projects import (
     PROJECTS_ROOT,
+    AccessDeniedError,
     PathEscapeError,
     find_pair,
     list_folder,
     load_pair,
+    resolve_safe,
     save_pair,
 )
+from . import meta as pair_meta
+from . import presence as presence_mod
 from .schema import Page
 
 
@@ -160,16 +171,19 @@ def serve_projects_page_deep(request: Request, deep_path: str):
 @app.post("/login", include_in_schema=False)
 async def do_login(
     request: Request,
+    username: str = Form(...),
     password: str = Form(...),
     next: Optional[str] = Form(None),
 ):
-    if not verify_password(password):
-        # Hibás jelszó — vissza a login oldalra
+    if not verify_credentials(username, password):
+        # Hibás usernév vagy jelszó — vissza a login oldalra
         target = f"/login?error=1"
         if next:
             target += f"&next={next}"
         return RedirectResponse(url=target, status_code=303)
-    request.session["auth"] = True
+    request.session["username"] = username
+    # Régi mezőt (v1) töröljük, ha valamiért ottragadt volna
+    request.session.pop("auth", None)
     return RedirectResponse(url=next or "/projects", status_code=303)
 
 
@@ -181,8 +195,14 @@ async def do_logout(request: Request):
 
 @app.get("/api/session")
 def api_session(request: Request):
-    """A frontend lekérdezheti, hogy be van-e lépve — pl. a landing-en."""
-    return {"authenticated": is_authenticated(request)}
+    """A frontend lekérdezheti a belépési állapotot.
+
+    Válasz:
+        - nem-authozott: {"authenticated": false}
+        - authozott:     {"authenticated": true, "username": "...",
+                          "display_name": "...", "is_admin": bool}
+    """
+    return session_info(request)
 
 
 @app.get("/api/health")
@@ -329,32 +349,52 @@ async def api_export_pdf(
 
 
 # ─── Projektek: mappa-tallózó API ────────────────────────────────────────
-@app.get("/api/projects", dependencies=[Depends(require_auth)])
-def api_projects_root():
-    return list_folder("")
+def _augment_with_presence(body: dict, current_user: str) -> dict:
+    """A listázó válaszába beleírjuk a presence-t a párokhoz.
+
+    A saját usernévet ki hagyjuk a jelzésekből — csak akkor van értelme
+    „X van itt", ha valaki más az.
+    """
+    path = body.get("path", "")
+    for pair in body.get("pairs", []):
+        presence = presence_mod.format_for_pair(path, pair["basename"], exclude=current_user)
+        if presence:
+            pair["presence"] = presence
+    return body
 
 
-@app.get("/api/projects/{path:path}", dependencies=[Depends(require_auth)])
-def api_projects_path(path: str):
+@app.get("/api/projects")
+def api_projects_root(user: str = Depends(require_auth)):
+    body = list_folder("", username=user)
+    return _augment_with_presence(body, user)
+
+
+@app.get("/api/projects/{path:path}")
+def api_projects_path(path: str, user: str = Depends(require_auth)):
     try:
-        return list_folder(path)
+        body = list_folder(path, username=user)
+    except AccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except PathEscapeError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"Nem létező mappa: {path!r}")
     except NotADirectoryError:
         raise HTTPException(status_code=400, detail=f"Nem mappa: {path!r}")
+    return _augment_with_presence(body, user)
 
 
 # ─── Egy projekt-pár betöltése / mentése ─────────────────────────────────
-@app.get("/api/project-file", dependencies=[Depends(require_auth)])
-def api_project_file_get(path: str, basename: str):
+@app.get("/api/project-file")
+def api_project_file_get(path: str, basename: str, user: str = Depends(require_auth)):
     """Egy pár annotáció + metaadatok betöltése editálásra.
 
     A képet külön endpoint szolgálja ki (`/api/project-image`).
     """
     try:
-        loaded = load_pair(path, basename)
+        loaded = load_pair(path, basename, username=user)
+    except AccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except PathEscapeError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except (FileNotFoundError, NotADirectoryError) as e:
@@ -372,6 +412,9 @@ def api_project_file_get(path: str, basename: str):
         f"/api/project-image?path={path}&basename={basename}"
         if loaded["image_filename"] else None
     )
+    # Meta (státusz + audit) — mindig hozzáadjuk a válaszhoz
+    folder = resolve_safe(path)
+    meta_info = pair_meta.read(folder, basename)
     return {
         "path":                loaded["path"],
         "basename":            loaded["basename"],
@@ -379,16 +422,19 @@ def api_project_file_get(path: str, basename: str):
         "annotation_format":   loaded["annotation_format"],
         "image_filename":      loaded["image_filename"],
         "image_url":           image_url,
+        "meta":                meta_info,
         "save_format":         loaded["save_format"],
         "page":                page.model_dump(exclude_none=True),
     }
 
 
-@app.get("/api/project-image", dependencies=[Depends(require_auth)])
-def api_project_image(path: str, basename: str):
+@app.get("/api/project-image")
+def api_project_image(path: str, basename: str, user: str = Depends(require_auth)):
     """A pár képfájljának kiszolgálása."""
     try:
-        found = find_pair(path, basename)
+        found = find_pair(path, basename, username=user)
+    except AccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except PathEscapeError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except (FileNotFoundError, NotADirectoryError) as e:
@@ -407,12 +453,13 @@ def api_project_image(path: str, basename: str):
     return FileResponse(str(image), media_type=media)
 
 
-@app.put("/api/project-file", dependencies=[Depends(require_auth)])
+@app.put("/api/project-file")
 async def api_project_file_put(
     request: Request,
     path: str,
     basename: str,
     format: Optional[str] = None,
+    user: str = Depends(require_auth),
 ):
     """Projekt-fájl mentése (felülírás).
 
@@ -434,8 +481,10 @@ async def api_project_file_put(
     fmt = format
     if not fmt:
         try:
-            loaded = load_pair(path, basename)
+            loaded = load_pair(path, basename, username=user)
             fmt = loaded["save_format"]
+        except AccessDeniedError as e:
+            raise HTTPException(status_code=403, detail=str(e))
         except (FileNotFoundError, NotADirectoryError) as e:
             raise HTTPException(status_code=404, detail=str(e))
         except PathEscapeError as e:
@@ -443,7 +492,11 @@ async def api_project_file_put(
 
     try:
         content = export_page(page, fmt, image_filename=body.get("image_filename") or "")
-        target  = save_pair(path, basename, content, fmt)
+        target  = save_pair(path, basename, content, fmt, username=user)
+        # Audit: kinek a nevére / mikor rögzítjük az utolsó mentést
+        pair_meta.record_edit(target.parent, basename, user)
+    except AccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except UnknownFormatError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except PathEscapeError as e:
@@ -457,3 +510,103 @@ async def api_project_file_put(
         "saved_filename": target.name,
         "save_format":    fmt,
     }
+
+
+# ─── Státusz (per-fájl sidecar) ──────────────────────────────────────────
+@app.get("/api/status-values")
+def api_status_values():
+    """A frontend dropdown-ját tápláló érvényes státusz-lista."""
+    return {
+        "values":  list(pair_meta.VALID_STATUSES),
+        "default": pair_meta.DEFAULT_STATUS,
+    }
+
+
+@app.put("/api/project-status")
+async def api_project_status_put(
+    request: Request,
+    path: str,
+    basename: str,
+    user: str = Depends(require_auth),
+):
+    """Egy pár státuszának állítása.
+
+    Body:
+        { "status": "folyamatban", "notes": "..." (opcionális) }
+    """
+    body = await request.json()
+    status = body.get("status")
+    if not isinstance(status, str):
+        raise HTTPException(status_code=400, detail="Hiányzó `status` mező.")
+    notes = body.get("notes")
+
+    try:
+        found = find_pair(path, basename, username=user)
+    except AccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except PathEscapeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except (FileNotFoundError, NotADirectoryError) as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    folder = found["folder"]
+    # A pár tényleg létezik-e?
+    if found["image"] is None and not found["annotations"]:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Nincs ilyen pár: {path}/{basename}",
+        )
+
+    try:
+        result = pair_meta.set_status(folder, basename, status, user, notes=notes)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return result
+
+
+# ─── Presence (jelenlét) ─────────────────────────────────────────────────
+@app.post("/api/presence/heartbeat")
+async def api_presence_heartbeat(
+    request: Request,
+    user: str = Depends(require_auth),
+):
+    """A frontend időnként (kb. 25 mp-enként) jelzi, hogy még itt van.
+
+    Body:
+        { "path": "Bakonykuti/1949", "basename": "sample" }
+
+    Válasz: kik vannak még a fájlon (az aktuális usert kihagyva).
+    """
+    body = await request.json()
+    path     = body.get("path", "")
+    basename = body.get("basename", "")
+    if not basename:
+        raise HTTPException(status_code=400, detail="Hiányzó `basename`.")
+    presence_mod.tracker.heartbeat(path, basename, user)
+    others = presence_mod.format_for_pair(path, basename, exclude=user)
+    return {"ok": True, "others": others}
+
+
+@app.post("/api/presence/leave")
+async def api_presence_leave(
+    request: Request,
+    user: str = Depends(require_auth),
+):
+    """Explicit kilépés — `beforeunload` esetén hívja a kliens."""
+    body = await request.json()
+    path     = body.get("path", "")
+    basename = body.get("basename", "")
+    if basename:
+        presence_mod.tracker.leave(path, basename, user)
+    return {"ok": True}
+
+
+@app.get("/api/presence")
+def api_presence_get(
+    path: str,
+    basename: str,
+    user: str = Depends(require_auth),
+):
+    """Aktuális presence egy párra — használhatja az editor beérkezéskor."""
+    others = presence_mod.format_for_pair(path, basename, exclude=user)
+    return {"others": others}

@@ -16,6 +16,9 @@ import json
 from pathlib import Path
 from typing import List, Dict, Optional
 
+from . import acl, meta
+from .auth import AUTH_CONFIG, is_admin_user
+
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 PROJECTS_ROOT = REPO_ROOT / "projects"
@@ -84,6 +87,9 @@ def _detect_image(filename_lower: str) -> Optional[int]:
 def _classify(filename: str) -> Optional[tuple[str, str, Optional[str]]]:
     """(basename, kind, format) — kind: 'image' vagy 'annotation'; format csak annotációnál."""
     low = filename.lower()
+    # A sidecart NE tekintsük annotációnak — a listázó külön kezeli
+    if low.endswith(meta.META_EXT):
+        return None
     ann = _detect_annotation(low)
     if ann is not None:
         base_len, fmt = ann
@@ -115,8 +121,35 @@ def _pick_best_annotation(annotations: Dict[str, dict]) -> Optional[dict]:
     return None
 
 
-def list_folder(user_path: str) -> dict:
-    """Egy mappa tartalmának JSON-esítése a frontend számára."""
+class AccessDeniedError(PermissionError):
+    """Az adott user nem látja a kért path-ot."""
+
+
+def _projects_cfg() -> dict:
+    return AUTH_CONFIG.get("projects") or {}
+
+
+def _user_can_see(user_path: str, username: Optional[str]) -> bool:
+    return acl.is_visible(
+        user_path,
+        username,
+        is_admin=is_admin_user(username),
+        projects_cfg=_projects_cfg(),
+    )
+
+
+def list_folder(user_path: str, username: Optional[str] = None) -> dict:
+    """Egy mappa tartalmának JSON-esítése a frontend számára.
+
+    ACL:
+      - Ha a `user_path` maga rejtve van a `username` elől → AccessDeniedError.
+      - Almappák szűrve: csak azok, amiket a user lát.
+      - Fájlpárokra az ACL a szülő path szerint dönt (ha a mappát látod, a
+        párokat is).
+    """
+    if not _user_can_see(user_path, username):
+        raise AccessDeniedError(f"Nincs jogosultság a mappához: {user_path!r}")
+
     p = resolve_safe(user_path)
     if not p.exists():
         raise FileNotFoundError(f"Nem létezik: {user_path!r}")
@@ -127,6 +160,9 @@ def list_folder(user_path: str) -> dict:
     # basename → {'image': {...}, 'annotations': {'json': {...}, 'alto-xml': {...}, ...}}
     grouped: Dict[str, dict] = {}
 
+    admin = is_admin_user(username)
+    cfg = _projects_cfg()
+
     for entry in sorted(p.iterdir(), key=lambda e: e.name.lower()):
         if entry.name.startswith("."):
             continue
@@ -134,6 +170,9 @@ def list_folder(user_path: str) -> dict:
         stat = entry.stat()
 
         if entry.is_dir():
+            # ACL szűrő: csak azok az almappák látszanak, amiket a user láthat
+            if not acl.is_visible(rel_child, username, is_admin=admin, projects_cfg=cfg):
+                continue
             subfolders.append({
                 "name": entry.name,
                 "path": rel_child,
@@ -172,6 +211,7 @@ def list_folder(user_path: str) -> dict:
             "image":      image,
             "annotation": annotation,
             "modified":   max(mtimes) if mtimes else None,
+            "meta":       meta.read(p, basename),
             # Ha több annotáció is van, a többiről is tudjon a kliens
             "other_annotations": [
                 {"format": fmt, **info}
@@ -203,8 +243,10 @@ def load_dir_config(folder: Path) -> dict:
 
 
 # ─── Egy pár betöltése ──────────────────────────────────────────────────
-def find_pair(user_path: str, basename: str) -> Dict[str, Optional[Path]]:
+def find_pair(user_path: str, basename: str, username: Optional[str] = None) -> Dict[str, Optional[Path]]:
     """Adott mappában adott basename-hez keresi meg a képet és annotációkat.
+
+    ACL: ha `username` át van adva, ellenőrizzük, hogy látja-e a mappát.
 
     Visszatérés:
       {
@@ -213,6 +255,8 @@ def find_pair(user_path: str, basename: str) -> Dict[str, Optional[Path]]:
         "annotations":       {"json": Path, "alto-xml": Path, ...},
       }
     """
+    if username is not None and not _user_can_see(user_path, username):
+        raise AccessDeniedError(f"Nincs jogosultság a mappához: {user_path!r}")
     folder = resolve_safe(user_path)
     if not folder.is_dir():
         raise NotADirectoryError(f"Nem mappa: {user_path!r}")
@@ -244,7 +288,7 @@ def _pick_best_annotation_path(annotations: Dict[str, Path]) -> Optional[tuple[s
     return None
 
 
-def load_pair(user_path: str, basename: str):
+def load_pair(user_path: str, basename: str, username: Optional[str] = None):
     """Egy pár betöltése.
 
     Visszatérés:
@@ -258,7 +302,7 @@ def load_pair(user_path: str, basename: str):
         "save_format":         "json" | "alto-xml" | "page-xml"  (dir config vagy annotation_format),
       }
     """
-    found = find_pair(user_path, basename)
+    found = find_pair(user_path, basename, username=username)
     ann = _pick_best_annotation_path(found["annotations"])
     if ann is None:
         raise FileNotFoundError(f"Nincs annotáció a párhoz: {user_path}/{basename}")
@@ -283,16 +327,22 @@ def load_pair(user_path: str, basename: str):
 
 
 # ─── Mentés / felülírás ─────────────────────────────────────────────────
-def save_pair(user_path: str, basename: str, content: bytes, save_format: str) -> Path:
+def save_pair(user_path: str, basename: str, content: bytes, save_format: str,
+              username: Optional[str] = None) -> Path:
     """A `content` bájtsort menti a megfelelő fájlnévre a mappában.
 
     Ha ugyanazon a basename-on ugyanabban a formátumban már van fájl, felülírjuk.
     Ha más formátumú testvérfájl van, azt békén hagyjuk (nem törlünk semmit).
 
+    ACL: ha `username` át van adva, ellenőrizzük a láthatóságot.
+
     Visszatérés: a mentett fájl teljes path-a.
     """
     if save_format not in VALID_SAVE_FORMATS:
         raise ValueError(f"Ismeretlen save_format: {save_format!r}")
+
+    if username is not None and not _user_can_see(user_path, username):
+        raise AccessDeniedError(f"Nincs jogosultság a mappához: {user_path!r}")
 
     folder = resolve_safe(user_path)
     if not folder.is_dir():
