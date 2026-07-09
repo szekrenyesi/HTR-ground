@@ -89,6 +89,71 @@ main {
   white-space: nowrap;
 }
 
+/* Státusz badge */
+.status-wrap {
+  flex: 0 0 auto;
+  position: relative;
+}
+.status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  user-select: none;
+  transition: filter 0.15s;
+  white-space: nowrap;
+}
+.status-badge:hover { filter: brightness(1.15); }
+.status-badge.status-új              { background: #25263a; color: #7a8ec4; border-color: #35364a; }
+.status-badge.status-folyamatban     { background: rgba(240, 208, 96, 0.15); color: #f0d060; border-color: rgba(240, 208, 96, 0.4); }
+.status-badge.status-ellenőrzésre-vár { background: rgba(232, 132, 132, 0.13); color: #e8a484; border-color: rgba(232, 132, 132, 0.4); }
+.status-badge.status-kész            { background: rgba(125, 204, 154, 0.14); color: #7dcc9a; border-color: rgba(125, 204, 154, 0.4); }
+
+.status-menu {
+  position: absolute; right: 0; top: calc(100% + 4px);
+  background: #1c1d26; border: 1px solid #35364a; border-radius: 6px;
+  padding: 4px; z-index: 10; min-width: 160px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+  display: none;
+}
+.status-menu.open { display: block; }
+.status-menu button {
+  display: block; width: 100%; text-align: left;
+  background: transparent; border: none; color: #c8c8d8;
+  font-size: 12px; padding: 6px 10px; border-radius: 4px;
+  cursor: pointer;
+}
+.status-menu button:hover { background: #25263a; color: #d8d8e0; }
+.status-menu button.current { color: #f0d060; }
+
+/* Audit tooltip a badge alatt */
+.item .audit {
+  font-size: 10px; color: #555; margin-top: 3px;
+  display: block;
+}
+.item .audit strong { color: #888; font-weight: 500; }
+
+/* Presence indikátor */
+.item .presence {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; color: #7dcc9a; margin-top: 3px;
+}
+.item .presence .pulse {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #7dcc9a;
+  box-shadow: 0 0 0 0 rgba(125, 204, 154, 0.6);
+  animation: pulse 1.6s infinite;
+}
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(125, 204, 154, 0.55); }
+  70%  { box-shadow: 0 0 0 6px rgba(125, 204, 154, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(125, 204, 154, 0); }
+}
+
 /* Loading / error state */
 .state-msg {
   color: #666; font-size: 13px; padding: 24px 0; text-align: center;
