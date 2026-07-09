@@ -10,6 +10,10 @@ or the internal JSON.
 The name comes from *ground truth* — the verified reference data used in
 machine learning, which is precisely what this tool helps produce.
 
+**Author:** Szekrényes István
+**License:** [GNU General Public License v3.0](LICENSE) or later
+**Copyright © 2026 Szekrényes István**
+
 ---
 
 ## Two usage modes
@@ -448,3 +452,23 @@ similar at that point.
 - **Test isolation**: the pytest conftest builds an isolated `auth.json`
   in a tmp folder *at module import time* (not in a fixture) because
   `SessionMiddleware` reads `session_secret` at import.
+
+---
+
+## Author
+
+**Szekrényes István**
+
+## License
+
+HTR-ground is free software: you can redistribute it and/or modify it under
+the terms of the **GNU General Public License version 3** (or, at your option,
+any later version) as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful, but **without
+any warranty**; without even the implied warranty of merchantability or
+fitness for a particular purpose. See the [LICENSE](LICENSE) file for the
+full text of the GNU General Public License, or visit
+<https://www.gnu.org/licenses/gpl-3.0.html>.
+
+Copyright © 2026 Szekrényes István
