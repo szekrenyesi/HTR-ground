@@ -42,4 +42,8 @@ WORKDIR /app/backend
 # Egyetlen worker — a presence in-memory, több worker esetén nem osztott
 # állapot. Ha nagy forgalom lesz, HTTPS terminációt csinálj reverse proxy-val
 # (nginx/Caddy), ne worker-számmal.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+#
+# --forwarded-allow-ips="*": bízunk a proxy X-Forwarded-Proto / -For fejléceiben.
+# Ez akkor biztonságos, ha a container-t csak a proxy éri el (bind 127.0.0.1
+# a docker-compose-ban HTTPS-hez).
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--forwarded-allow-ips", "*"]

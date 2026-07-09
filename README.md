@@ -155,14 +155,68 @@ Restore = untar to the same layout, then `docker compose up -d`.
 
 ### HTTPS / reverse proxy
 
-The compose file exposes port 8000 as plain HTTP. Put nginx / Caddy /
-Traefik in front for TLS termination. If you do, bind the port only to
-localhost inside `docker-compose.yml`:
+The compose file ships with the container bound to `127.0.0.1:8000` — so
+nothing is exposed to the outside directly. Put nginx / Apache / Caddy /
+Traefik in front for TLS termination.
 
-```yaml
-ports:
-  - "127.0.0.1:8000:8000"
+**The compose file also sets `HTR_GROUND_HTTPS=1`**, which enables the
+`Secure` flag on the session cookie so it never leaks over plain HTTP. If
+you're testing locally without HTTPS, remove this env var (otherwise the
+browser will refuse to send the cookie back).
+
+**nginx** — minimal snippet, drop it in a `server` block:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name htr.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/htr.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/htr.example.com/privkey.pem;
+
+    # File uploads / PDF exports can be large
+    client_max_body_size 100M;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# Redirect HTTP → HTTPS
+server {
+    listen 80;
+    server_name htr.example.com;
+    return 301 https://$host$request_uri;
+}
 ```
+
+**Apache** — needs `mod_proxy`, `mod_proxy_http` and `mod_ssl` enabled:
+
+```apache
+<VirtualHost *:443>
+    ServerName htr.example.com
+
+    SSLEngine on
+    SSLCertificateFile    /etc/letsencrypt/live/htr.example.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/htr.example.com/privkey.pem
+
+    ProxyPreserveHost On
+    ProxyPass        /  http://127.0.0.1:8000/
+    ProxyPassReverse /  http://127.0.0.1:8000/
+
+    RequestHeader set X-Forwarded-Proto "https"
+</VirtualHost>
+```
+
+The Docker container is configured with `uvicorn --forwarded-allow-ips=*`,
+so it trusts the `X-Forwarded-Proto` header from any source. This is safe
+here because the container is only reachable from localhost (via the port
+binding above), never from the public network directly.
 
 ### Presence and workers
 

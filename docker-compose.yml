@@ -30,9 +30,17 @@ services:
     restart: unless-stopped
 
     ports:
-      # Ha reverse proxy elé (nginx/Caddy/Traefik) teszed, csak localhost-ra bindolj:
+      # HTTPS + reverse proxy mögé (nginx/Apache/Caddy) használd:
       #   - "127.0.0.1:8000:8000"
-      - "8000:8000"
+      # így a container csak a localhost-ról érhető el, kifelé csak a
+      # HTTPS proxy port ad ki bármit is.
+      - "127.0.0.1:8000:8000"
+
+    environment:
+      # HTTPS mögé: Secure flag a session cookie-ra. Ha lokálisan HTTP-n
+      # teszteled, állítsd 0-ra (vagy vedd ki teljesen), különben a böngésző
+      # nem küldi vissza a cookie-t. A .env fájlon keresztül overrideolható.
+      HTR_GROUND_HTTPS: "${HTR_GROUND_HTTPS:-0}"
 
     volumes:
       # Config: userek, ACL, session secret — a bootstrap ide írja az auth.json-t

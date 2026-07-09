@@ -19,6 +19,7 @@ Endpoint-ok:
 from __future__ import annotations
 
 import json as _json
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -76,12 +77,18 @@ app = FastAPI(
 )
 
 # ─── Session ─────────────────────────────────────────────────────────────
+# HTTPS mögé (reverse proxy elé) tett telepítéshez a session cookie-ra
+# Secure flaget teszünk, hogy sose menjen ki plaintext HTTP-n. Bekapcsolás:
+#   HTR_GROUND_HTTPS=1 environment variable
+_https_only = os.environ.get("HTR_GROUND_HTTPS", "").lower() in ("1", "true", "yes", "on")
+
 app.add_middleware(
     SessionMiddleware,
     secret_key=AUTH_CONFIG["session_secret"],
     session_cookie=AUTH_CONFIG.get("session_cookie_name", "htrground_session"),
     max_age=AUTH_CONFIG.get("session_max_age_seconds", 604800),
     same_site="lax",
+    https_only=_https_only,
 )
 
 
