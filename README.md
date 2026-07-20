@@ -64,7 +64,6 @@ HTR-ground/
 │
 ├── projects/                    # (user content) shared corpus tree
 ├── fonts/EBGaramond-Regular.ttf # required for PDF export
-├── CLAUDE.md                    # context for AI assistants
 └── README.md
 ```
 
@@ -408,33 +407,33 @@ return HTTP 401 as JSON if the session cookie is missing.
 
 ### Public
 
-| Method | Path                                         | Purpose                                    |
-|--------|----------------------------------------------|--------------------------------------------|
-| GET    | `/`                                          | Landing page                               |
-| GET    | `/demo`                                      | Demo editor (upload-based)                 |
-| GET    | `/login`, POST `/login`                      | Login form + username/password submit       |
-| POST   | `/logout`                                    | Clears session                             |
-| GET    | `/api/session`                               | `{authenticated, username?, display_name?, is_admin?}` |
-| GET    | `/api/health`                                | `{status: "ok"}`                           |
-| POST   | `/api/convert`                               | HTR file → internal `Page` JSON            |
-| POST   | `/api/export`                                | `Page` JSON → JSON / ALTO / PAGE download  |
-| POST   | `/api/export-pdf`                            | `Page` + image → searchable two-layer PDF   |
-| GET    | `/api/status-values`                         | UI dropdown source: `{values, default}`     |
+| Method | Path                    | Purpose                                                |
+| ------ | ----------------------- | ------------------------------------------------------ |
+| GET    | `/`                     | Landing page                                           |
+| GET    | `/demo`                 | Demo editor (upload-based)                             |
+| GET    | `/login`, POST `/login` | Login form + username/password submit                  |
+| POST   | `/logout`               | Clears session                                         |
+| GET    | `/api/session`          | `{authenticated, username?, display_name?, is_admin?}` |
+| GET    | `/api/health`           | `{status: "ok"}`                                       |
+| POST   | `/api/convert`          | HTR file → internal `Page` JSON                        |
+| POST   | `/api/export`           | `Page` JSON → JSON / ALTO / PAGE download              |
+| POST   | `/api/export-pdf`       | `Page` + image → searchable two-layer PDF              |
+| GET    | `/api/status-values`    | UI dropdown source: `{values, default}`                |
 
 ### Auth-gated
 
-| Method | Path                                             | Purpose                                    |
-|--------|--------------------------------------------------|--------------------------------------------|
-| GET    | `/projects`, `/projects/{path}`                  | Projects browser HTML (deep-link OK)        |
-| GET    | `/projects/edit?path=…&basename=…`               | Editor in project mode                      |
-| GET    | `/api/projects`, `/api/projects/{path}`          | Folder listing (JSON) — includes `meta` + `presence` |
-| GET    | `/api/project-file?path=…&basename=…`            | Load one pair → `{page, image_url, save_format, meta, …}` |
-| PUT    | `/api/project-file?path=…&basename=…`            | Save one pair in-place; auto-records `edited_by/at` |
-| GET    | `/api/project-image?path=…&basename=…`           | Serve the pair's image file                 |
-| PUT    | `/api/project-status?path=…&basename=…`          | Set status; body: `{status, notes?}`        |
-| POST   | `/api/presence/heartbeat`                        | Client tells the server "I'm still here"    |
-| POST   | `/api/presence/leave`                            | Explicit leave (browser `beforeunload`)     |
-| GET    | `/api/presence?path=…&basename=…`                | Who else is currently on this file          |
+| Method | Path                                    | Purpose                                                   |
+| ------ | --------------------------------------- | --------------------------------------------------------- |
+| GET    | `/projects`, `/projects/{path}`         | Projects browser HTML (deep-link OK)                      |
+| GET    | `/projects/edit?path=…&basename=…`      | Editor in project mode                                    |
+| GET    | `/api/projects`, `/api/projects/{path}` | Folder listing (JSON) — includes `meta` + `presence`      |
+| GET    | `/api/project-file?path=…&basename=…`   | Load one pair → `{page, image_url, save_format, meta, …}` |
+| PUT    | `/api/project-file?path=…&basename=…`   | Save one pair in-place; auto-records `edited_by/at`       |
+| GET    | `/api/project-image?path=…&basename=…`  | Serve the pair's image file                               |
+| PUT    | `/api/project-status?path=…&basename=…` | Set status; body: `{status, notes?}`                      |
+| POST   | `/api/presence/heartbeat`               | Client tells the server "I'm still here"                  |
+| POST   | `/api/presence/leave`                   | Explicit leave (browser `beforeunload`)                   |
+| GET    | `/api/presence?path=…&basename=…`       | Who else is currently on this file                        |
 
 ### Example: convert + export
 
