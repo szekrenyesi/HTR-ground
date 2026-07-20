@@ -10,7 +10,7 @@ or the internal JSON.
 The name comes from *ground truth* — the verified reference data used in
 machine learning, which is precisely what this tool helps produce.
 
-**Author:** Szekrényes István
+**Author:** István Szekrényes
 **License:** [GNU General Public License v3.0](LICENSE) or later
 **Copyright © 2026 István Szekrényes**
 
