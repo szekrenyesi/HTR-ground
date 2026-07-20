@@ -12,7 +12,7 @@ machine learning, which is precisely what this tool helps produce.
 
 **Author:** Szekrényes István
 **License:** [GNU General Public License v3.0](LICENSE) or later
-**Copyright © 2026 Szekrényes István**
+**Copyright © 2026 István Szekrényes**
 
 ---
 
@@ -592,7 +592,7 @@ similar at that point.
 
 ## Author
 
-**Szekrényes István**
+**István Szekrényes**
 
 ## License
 
@@ -606,4 +606,4 @@ fitness for a particular purpose. See the [LICENSE](LICENSE) file for the
 full text of the GNU General Public License, or visit
 <https://www.gnu.org/licenses/gpl-3.0.html>.
 
-Copyright © 2026 Szekrényes István
+Copyright © 2026 István Szekrényes
