@@ -29,6 +29,14 @@ services:
     container_name: htr-ground
     restart: unless-stopped
 
+    # A container a host user UID-jával fut, így a bind mount-ba írt fájlokat
+    # (auth.json, sidecarok, stb.) te tudod szerkeszteni kívülről is. A default
+    # a te aktuális UID/GID-ed (a compose $UID / $GID-t olvassa), de override-
+    # olható a .env-ben (`HTR_UID=1000`, `HTR_GID=1000`).
+    #
+    # Az `id -u && id -g` megmutatja a saját UID/GID-edet.
+    user: "${HTR_UID:-1000}:${HTR_GID:-1000}"
+
     ports:
       # HTTPS + reverse proxy mögé (nginx/Apache/Caddy) használd:
       #   - "127.0.0.1:8000:8000"
@@ -41,6 +49,10 @@ services:
       # teszteled, állítsd 0-ra (vagy vedd ki teljesen), különben a böngésző
       # nem küldi vissza a cookie-t. A .env fájlon keresztül overrideolható.
       HTR_GROUND_HTTPS: "${HTR_GROUND_HTTPS:-0}"
+      # Sub-path telepítés: ha egy reverse proxy egy prefix alatt szolgálja
+      # ki a HTR-groundot (pl. https://example.com/htr-ground/), állítsd be
+      # a prefixet. Üres = root deployment (az egész domain a HTR-groundé).
+      HTR_GROUND_ROOT_PATH: "${HTR_GROUND_ROOT_PATH:-}"
 
     volumes:
       # Config: userek, ACL, session secret — a bootstrap ide írja az auth.json-t

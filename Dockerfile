@@ -27,7 +27,7 @@ RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 COPY backend/  /app/backend/
 COPY frontend/ /app/frontend/
 COPY fonts/    /app/fonts/
-COPY LICENSE README.md CLAUDE.md /app/
+COPY LICENSE README.md /app/
 
 # A conf/auth_default.json az image-ben marad, hogy fresh deploy is
 # induljon (az uvicorn nem hasal el egyből, a bootstrap CLI-t viszont

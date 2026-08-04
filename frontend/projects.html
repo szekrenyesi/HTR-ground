@@ -4,13 +4,16 @@
   <meta charset="UTF-8">
   <title>Projektek · HTR-ground</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- A backend {{ROOT_PATH}}-t behelyettesíti a runtime prefix-re. -->
+  <base href="{{ROOT_PATH}}/">
+  <meta name="root-path" content="{{ROOT_PATH}}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="/projects.css">
+  <link rel="stylesheet" href="projects.css">
 </head>
 <body>
 
 <nav class="navbar navbar-dark-custom px-3">
-  <a class="brand" href="/">HTR-ground</a>
+  <a class="brand" href="{{ROOT_PATH}}/">HTR-ground</a>
   <span id="login-status" class="login-status"></span>
 </nav>
 
@@ -32,6 +35,6 @@
   <a href="https://github.com/szekrenyesi/HTR-ground" target="_blank" rel="noopener">GitHub</a>
 </footer>
 
-<script src="/projects.js"></script>
+<script src="projects.js"></script>
 </body>
 </html>

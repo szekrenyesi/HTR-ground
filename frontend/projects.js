@@ -4,12 +4,19 @@ const contentEl    = document.getElementById('content');
 const breadcrumbEl = document.getElementById('breadcrumb');
 const loginStatus  = document.getElementById('login-status');
 
+// Sub-path deployment: a HTML meta tagből vesszük a prefixet.
+// Üres string root deployment esetén; pl. "/htr-ground" sub-path módban.
+const ROOT_PATH = document.querySelector('meta[name="root-path"]')?.content || '';
+function api(path) { return ROOT_PATH + path; }
+
 // Státusz-lista cache (a backend adja a /api/status-values-en)
 let statusValues = null;
 
-// A location.pathname-ból kivágjuk a /projects prefixet → user_path
+// A location.pathname-ból kivágjuk a ROOT_PATH-ot ÉS a /projects prefixet → user_path
 function currentPath() {
-  const p = window.location.pathname.replace(/^\/projects\/?/, '').replace(/\/+$/, '');
+  let p = window.location.pathname;
+  if (ROOT_PATH && p.startsWith(ROOT_PATH)) p = p.slice(ROOT_PATH.length);
+  p = p.replace(/^\/projects\/?/, '').replace(/\/+$/, '');
   return p; // "" | "Bakonykuti" | "Bakonykuti/1949"
 }
 
@@ -37,18 +44,18 @@ function esc(s) {
 
 // Login state widget
 function setupLoginStatus() {
-  fetch('/api/session').then(r => r.json()).then(info => {
+  fetch(api('/api/session')).then(r => r.json()).then(info => {
     if (info.authenticated) {
       const name = info.display_name || info.username;
       const adminTag = info.is_admin ? ' <span title="admin" style="color:#f0d060;">★</span>' : '';
       loginStatus.innerHTML = `Belépve mint <strong style="color:#d8d8e0;">${esc(name)}</strong>${adminTag} · <a href="#" class="btn-link-plain" id="logout-link">Kilépés</a>`;
       document.getElementById('logout-link').addEventListener('click', async ev => {
         ev.preventDefault();
-        await fetch('/logout', { method: 'POST' });
-        window.location.href = '/';
+        await fetch(api('/logout'), { method: 'POST' });
+        window.location.href = ROOT_PATH + '/';
       });
     } else {
-      loginStatus.innerHTML = '<a href="/login" class="btn-link-plain">Belépés</a>';
+      loginStatus.innerHTML = `<a href="${ROOT_PATH}/login" class="btn-link-plain">Belépés</a>`;
     }
   }).catch(() => {});
 }
@@ -57,7 +64,7 @@ function renderBreadcrumb(crumbs) {
   const parts = crumbs.map((c, i) => {
     const isLast = i === crumbs.length - 1;
     if (isLast) return `<span class="current">${esc(c.name)}</span>`;
-    const href = c.path ? `/projects/${c.path}` : '/projects';
+    const href = c.path ? `${ROOT_PATH}/projects/${c.path}` : `${ROOT_PATH}/projects`;
     return `<a href="${href}" data-crumb="${esc(c.path)}">${esc(c.name)}</a>`;
   });
   breadcrumbEl.innerHTML = parts.join('<span class="sep">›</span>');
@@ -66,7 +73,7 @@ function renderBreadcrumb(crumbs) {
 function renderSubfolders(subfolders) {
   if (!subfolders.length) return '';
   const items = subfolders.map(f => `
-    <a class="item" href="/projects/${esc(f.path)}" data-navigate="${esc(f.path)}">
+    <a class="item" href="${ROOT_PATH}/projects/${esc(f.path)}" data-navigate="${esc(f.path)}">
       <span class="icon">📁</span>
       <div class="meta">
         <div class="name">${esc(f.name)}</div>
@@ -150,7 +157,7 @@ function renderPairs(pairs, folderPath) {
 
     // Editor megnyitása a szerver-fájllal — a státusz badge NEM redirectel
     const q = new URLSearchParams({ path: folderPath || '', basename: pair.basename });
-    const href = `/projects/edit?${q}`;
+    const href = `${ROOT_PATH}/projects/edit?${q}`;
     return `
       <div class="item" data-href="${href}">
         <span class="icon">${icon}</span>
@@ -203,7 +210,7 @@ function openStatusMenu(badgeEl) {
 async function updateStatus(path, basename, newStatus) {
   const q = new URLSearchParams({ path, basename });
   try {
-    const res = await fetch(`/api/project-status?${q}`, {
+    const res = await fetch(api(`/api/project-status?${q}`), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: newStatus }),
@@ -244,19 +251,19 @@ document.addEventListener('keydown', ev => {
 async function ensureStatusValues() {
   if (statusValues) return;
   try {
-    const res = await fetch('/api/status-values');
+    const res = await fetch(api('/api/status-values'));
     if (res.ok) statusValues = await res.json();
   } catch (_) { /* offline / nincs backend — legfeljebb nem nyílik a menu */ }
 }
 
 async function loadFolder(path) {
   contentEl.innerHTML = '<div class="state-msg">Betöltés…</div>';
-  const url = path ? `/api/projects/${path}` : '/api/projects';
+  const url = path ? api(`/api/projects/${path}`) : api('/api/projects');
   try {
     const res = await fetch(url);
     if (res.status === 401) {
       // Nem vagyunk beléptetve — redirect a login oldalra
-      window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
+      window.location.href = `${ROOT_PATH}/login?next=${encodeURIComponent(window.location.pathname)}`;
       return;
     }
     if (!res.ok) {

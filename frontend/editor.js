@@ -1,3 +1,9 @@
+// ─── Sub-path deployment support ──────────────────────────────
+// A HTML meta tag adja a ROOT_PATH-ot (üres string root deployment esetén,
+// pl. "/htr-ground" ha reverse proxy sub-path alatt fut).
+const ROOT_PATH = document.querySelector('meta[name="root-path"]')?.content || '';
+function api(path) { return ROOT_PATH + path; }
+
 // ─── Állapot ────────────────────────────────────────────────────
 let data     = null;
 let origData = null;
@@ -32,10 +38,12 @@ const editorMode = projectContext ? 'project' : 'demo';
   if (!backBtn) return;
   // file:// módban ne mutassuk (nincs hova visszalépni)
   if (location.protocol === 'file:') return;
-  let target = '/';
+  let target = ROOT_PATH + '/';
   let title  = 'Vissza a főoldalra';
   if (editorMode === 'project') {
-    target = projectContext.path ? `/projects/${projectContext.path}` : '/projects';
+    target = projectContext.path
+      ? `${ROOT_PATH}/projects/${projectContext.path}`
+      : `${ROOT_PATH}/projects`;
     title  = 'Vissza a projekt-mappához';
   }
   backBtn.title = title;
@@ -44,8 +52,9 @@ const editorMode = projectContext ? 'project' : 'demo';
 })();
 
 function readProjectContext() {
-  // /projects/edit?path=…&basename=… → { path, basename }
-  if (!window.location.pathname.startsWith('/projects/edit')) return null;
+  // {ROOT_PATH}/projects/edit?path=…&basename=… → { path, basename }
+  const editPath = ROOT_PATH + '/projects/edit';
+  if (!window.location.pathname.startsWith(editPath)) return null;
   const p = new URLSearchParams(window.location.search);
   const path     = p.get('path')     || '';
   const basename = p.get('basename') || '';
@@ -146,7 +155,7 @@ async function loadViaBackend(file) {
   try {
     const form = new FormData();
     form.append('file', file);
-    const res = await fetch('/api/convert', { method: 'POST', body: form });
+    const res = await fetch(api('/api/convert'), { method: 'POST', body: form });
     if (!res.ok) {
       let msg = `HTTP ${res.status}`;
       try { const j = await res.json(); if (j.detail) msg = j.detail; } catch(_) {}
@@ -665,7 +674,7 @@ async function exportAndDownload(format, basename) {
       form.append('page', JSON.stringify(data));
       form.append('image', loadedImageBlob, 'image');
       form.append('basename', basename);
-      const res = await fetch('/api/export-pdf', { method: 'POST', body: form });
+      const res = await fetch(api('/api/export-pdf'), { method: 'POST', body: form });
       if (!res.ok) {
         let msg = `HTTP ${res.status}`;
         try { const j = await res.json(); if (j.detail) msg = j.detail; } catch(_) {}
@@ -681,7 +690,7 @@ async function exportAndDownload(format, basename) {
 
   // ALTO / PAGE: backend hívás JSON body-val
   try {
-    const res = await fetch('/api/export', {
+    const res = await fetch(api('/api/export'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ page: data, format, basename, image_filename: '' }),
@@ -710,7 +719,7 @@ async function saveInPlace() {
   saveBtn.textContent = 'Mentés…';
   try {
     const q = new URLSearchParams({ path: projectContext.path, basename: projectContext.basename });
-    const res = await fetch(`/api/project-file?${q}`, {
+    const res = await fetch(api(`/api/project-file?${q}`), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ page: data, image_filename: projectContext.imageFilename || '' }),
@@ -751,7 +760,7 @@ async function checkPresenceBeforeOpen() {
   // Ha van másik aktív user, konfirmáljunk (Anna itt van — biztos folytatod?)
   try {
     const q = new URLSearchParams({ path: projectContext.path, basename: projectContext.basename });
-    const res = await fetch(`/api/presence?${q}`);
+    const res = await fetch(api(`/api/presence?${q}`));
     if (!res.ok) return true; // presence hiba nem blokkolja a betöltést
     const body = await res.json();
     if (!body.others || !body.others.users || !body.others.users.length) return true;
@@ -768,7 +777,7 @@ async function checkPresenceBeforeOpen() {
 async function sendHeartbeat() {
   if (!projectContext) return;
   try {
-    await fetch('/api/presence/heartbeat', {
+    await fetch(api('/api/presence/heartbeat'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: projectContext.path, basename: projectContext.basename }),
@@ -789,9 +798,9 @@ function stopHeartbeatAndLeave() {
   // sendBeacon: page unload alatt is megbízhatóan kimegy
   if (navigator.sendBeacon) {
     const blob = new Blob([payload], { type: 'application/json' });
-    navigator.sendBeacon('/api/presence/leave', blob);
+    navigator.sendBeacon(api('/api/presence/leave'), blob);
   } else {
-    fetch('/api/presence/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
+    fetch(api('/api/presence/leave'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
   }
 }
 
@@ -816,7 +825,9 @@ async function initProjectMode() {
   const proceed = await checkPresenceBeforeOpen();
   if (!proceed) {
     // Vissza a projekt-mappához
-    const back = projectContext.path ? `/projects/${projectContext.path}` : '/projects';
+    const back = projectContext.path
+      ? `${ROOT_PATH}/projects/${projectContext.path}`
+      : `${ROOT_PATH}/projects`;
     window.location.href = back;
     return;
   }
@@ -824,9 +835,9 @@ async function initProjectMode() {
   // Autoload a projekt-fájl
   try {
     const q = new URLSearchParams({ path: projectContext.path, basename: projectContext.basename });
-    const res = await fetch(`/api/project-file?${q}`);
+    const res = await fetch(api(`/api/project-file?${q}`));
     if (res.status === 401) {
-      window.location.href = `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+      window.location.href = `${ROOT_PATH}/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
       return;
     }
     if (!res.ok) {

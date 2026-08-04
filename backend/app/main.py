@@ -66,6 +66,28 @@ FRONTEND_DIR = REPO_ROOT / "frontend"
 EXAMPLES_DIR = REPO_ROOT / "examples"
 
 
+# ─── Sub-path deployment support ─────────────────────────────────────────
+# Ha a HTR-ground egy reverse proxy sub-path alatt fut (pl.
+# https://altnyelv.unideb.hu/htr-ground/), akkor a HTR_GROUND_ROOT_PATH env
+# var segít ezt kompenzálni:
+#   - a FastAPI-nek megmondjuk a `root_path`-et (OpenAPI docs, redirect building)
+#   - a HTML-be `<base>` tag + meta tag kerül, hogy a frontend tudja a prefixet
+#   - a login/logout redirect-eket manuálisan prefix-eljük
+#
+# Alapérték: üres = root telepítés (a jelenlegi működés).
+def _normalize_root_path(raw: str) -> str:
+    """Ha van érték, `/`-vel kezdődjön és NE `/`-re végződjön."""
+    p = (raw or "").strip()
+    if not p:
+        return ""
+    if not p.startswith("/"):
+        p = "/" + p
+    return p.rstrip("/")
+
+
+ROOT_PATH = _normalize_root_path(os.environ.get("HTR_GROUND_ROOT_PATH", ""))
+
+
 app = FastAPI(
     title="HTR-ground",
     description=(
@@ -73,7 +95,8 @@ app = FastAPI(
         "Demo / playground: HTR kimenetek (ALTO XML, PAGE XML, natív JSON) "
         "konverziója a belső szerkesztő formátumra."
     ),
-    version="0.2.0",
+    version="0.3.0",
+    root_path=ROOT_PATH,
 )
 
 # ─── Session ─────────────────────────────────────────────────────────────
@@ -99,11 +122,43 @@ if EXAMPLES_DIR.exists():
 
 
 # ─── Frontend asset helper ───────────────────────────────────────────────
-def _serve_frontend_asset(name: str, media_type: str) -> FileResponse:
+from fastapi.responses import HTMLResponse
+
+# HTML-be a `{{ROOT_PATH}}` placeholder-t behelyettesítjük a runtime prefix-re.
+# Így ugyanaz a frontend fájl kiszolgál root-mód (üres) és sub-path módban is.
+_HTML_TEMPLATE_MARKER = "{{ROOT_PATH}}"
+
+
+def _serve_frontend_asset(name: str, media_type: str):
     path = FRONTEND_DIR / name
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"{name} nem található: {path}")
+    # HTML-t template-eljük, hogy a prefix mindig helyes legyen
+    if media_type.startswith("text/html"):
+        html = path.read_text(encoding="utf-8")
+        html = html.replace(_HTML_TEMPLATE_MARKER, ROOT_PATH)
+        return HTMLResponse(content=html)
     return FileResponse(str(path), media_type=media_type)
+
+
+def _prefixed(url: str) -> str:
+    """Egy belső URL prefix-elése — a redirect-ekhez.
+
+    - Az abszolút HTTP(S) URL-eket változatlanul hagyjuk
+    - A `/`-vel kezdődő path-hoz hozzáfűzzük a ROOT_PATH-ot (ha van)
+    """
+    if not url:
+        return url
+    if url.startswith(("http://", "https://", "//")):
+        return url
+    if not ROOT_PATH:
+        return url
+    # Elkerüljük, hogy már prefix-elt URL-re megint rárakjuk
+    if url.startswith(ROOT_PATH + "/") or url == ROOT_PATH:
+        return url
+    if not url.startswith("/"):
+        url = "/" + url
+    return ROOT_PATH + url
 
 
 # ─── HTML oldalak ────────────────────────────────────────────────────────
@@ -187,17 +242,17 @@ async def do_login(
         target = f"/login?error=1"
         if next:
             target += f"&next={next}"
-        return RedirectResponse(url=target, status_code=303)
+        return RedirectResponse(url=_prefixed(target), status_code=303)
     request.session["username"] = username
     # Régi mezőt (v1) töröljük, ha valamiért ottragadt volna
     request.session.pop("auth", None)
-    return RedirectResponse(url=next or "/projects", status_code=303)
+    return RedirectResponse(url=_prefixed(next or "/projects"), status_code=303)
 
 
 @app.post("/logout", include_in_schema=False)
 async def do_logout(request: Request):
     request.session.clear()
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url=_prefixed("/"), status_code=303)
 
 
 @app.get("/api/session")
@@ -416,7 +471,7 @@ def api_project_file_get(path: str, basename: str, user: str = Depends(require_a
         raise HTTPException(status_code=422, detail=f"Konverziós hiba: {e}")
 
     image_url = (
-        f"/api/project-image?path={path}&basename={basename}"
+        _prefixed(f"/api/project-image?path={path}&basename={basename}")
         if loaded["image_filename"] else None
     )
     # Meta (státusz + audit) — mindig hozzáadjuk a válaszhoz

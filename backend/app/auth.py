@@ -235,13 +235,38 @@ def require_admin(request: Request) -> str:
     return name
 
 
+def _root_path_from_env() -> str:
+    """Ugyanaz a normalizáló szabály, mint a main.py-ban.
+
+    Lazy — minden hívásnál olvassuk, hogy teszteléskor a monkeypatch-et is
+    kövessük (különben a modul-load-kori érték ragadna).
+    """
+    import os as _os
+    raw = _os.environ.get("HTR_GROUND_ROOT_PATH", "").strip()
+    if not raw:
+        return ""
+    if not raw.startswith("/"):
+        raw = "/" + raw
+    return raw.rstrip("/")
+
+
 def require_auth_or_redirect(request: Request):
-    """HTML oldalakhoz: ha nincs belépve, redirect a login oldalra."""
+    """HTML oldalakhoz: ha nincs belépve, redirect a login oldalra.
+
+    A `next` paramétert és a login URL-t is prefix-eljük, ha a
+    HTR_GROUND_ROOT_PATH be van állítva.
+    """
     if not is_authenticated(request):
+        root_path = _root_path_from_env()
+        # A request.url.path a proxy-strip UTÁNI path (pl. `/projects`).
+        # Ehhez hozzátesszük a prefix-et, hogy a `next` teljes URL legyen.
         next_url = request.url.path
+        if root_path and next_url.startswith("/"):
+            next_url = root_path + next_url
         if request.url.query:
             next_url = f"{next_url}?{request.url.query}"
-        return RedirectResponse(url=f"/login?next={next_url}", status_code=303)
+        login_url = f"{root_path}/login" if root_path else "/login"
+        return RedirectResponse(url=f"{login_url}?next={next_url}", status_code=303)
     return None
 
 

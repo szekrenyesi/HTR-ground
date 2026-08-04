@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <title>HTR-ground</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- A backend {{ROOT_PATH}}-t behelyettesíti a runtime prefix-re (üres, ha root deployment). -->
+  <base href="{{ROOT_PATH}}/">
+  <meta name="root-path" content="{{ROOT_PATH}}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body {
@@ -78,14 +81,14 @@
   <div class="container">
     <div class="row justify-content-center g-3">
       <div class="col-md-5">
-        <a href="/demo" class="mode-card">
+        <a href="demo" class="mode-card">
           <div class="emoji">🧪</div>
           <h2>Demó / Játszótér</h2>
           <p>Tölts fel saját gépről egy kép–átirat párt (JSON&nbsp;/ ALTO XML / PAGE XML), szerkeszd, majd töltsd le a javított változatot. Nem kell belépés.</p>
         </a>
       </div>
       <div class="col-md-5">
-        <a href="/projects" class="mode-card">
+        <a href="projects" class="mode-card">
           <div class="emoji">📁</div>
           <h2>Projektek</h2>
           <p>A szerveren tárolt projektek böngészése és szerkesztése. Mentéskor a fájl a helyén frissül. Belépés szükséges.</p>
@@ -104,13 +107,16 @@
 </footer>
 
 <script>
-// Belépési állapot lekérdezése — a Projektek kártya kap egy „be van lépve" jelzést
+// A ROOT_PATH-t a HTML meta tagből olvassuk (a backend helyettesíti be).
+const ROOT_PATH = document.querySelector('meta[name="root-path"]')?.content || '';
+function api(path) { return ROOT_PATH + path; }
+
 function esc(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   })[c]);
 }
-fetch('/api/session').then(r => r.json()).then(info => {
+fetch(api('/api/session')).then(r => r.json()).then(info => {
   const el = document.getElementById('login-status');
   if (info.authenticated) {
     const name = info.display_name || info.username;
@@ -118,11 +124,11 @@ fetch('/api/session').then(r => r.json()).then(info => {
     el.innerHTML = `Belépve mint <strong style="color:#d8d8e0;">${esc(name)}</strong>${adminTag} · <a href="#" class="btn-link-plain" id="logout-link">Kilépés</a>`;
     document.getElementById('logout-link').addEventListener('click', async ev => {
       ev.preventDefault();
-      await fetch('/logout', { method: 'POST' });
+      await fetch(api('/logout'), { method: 'POST' });
       window.location.reload();
     });
   } else {
-    el.innerHTML = '<a href="/login" class="btn-link-plain">Belépés</a>';
+    el.innerHTML = `<a href="${ROOT_PATH}/login" class="btn-link-plain">Belépés</a>`;
   }
 }).catch(() => {});
 </script>

@@ -4,14 +4,16 @@
   <meta charset="UTF-8">
   <title>HTR Editor</title>
   <script>
-    // HTTP módban rögzítjük a base URL-t a szerver gyökeréhez,
-    // hogy a relatív editor.css/js akkor is helyesen töltődjön be,
-    // ha az URL /projects/edit?…. file:// módban ne állítsuk be —
-    // ott a relatív útvonalak a fájl mellől jönnek.
+    // HTTP(S) módban rögzítjük a base URL-t az alkalmazás gyökeréhez.
+    // A {{ROOT_PATH}} placeholder-t a backend behelyettesíti (üres, ha
+    // root deployment; pl. "/htr-ground", ha sub-path alatt fut).
+    // file:// módban nem állítjuk be — ott a relatív útvonalak a fájl
+    // mellől jönnek.
     if (location.protocol !== 'file:') {
-      document.write('<base href="/">');
+      document.write('<base href="{{ROOT_PATH}}/">');
     }
   </script>
+  <meta name="root-path" content="{{ROOT_PATH}}">
   <link rel="stylesheet" href="editor.css">
 </head>
 <body>

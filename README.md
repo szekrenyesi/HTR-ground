@@ -217,6 +217,55 @@ so it trusts the `X-Forwarded-Proto` header from any source. This is safe
 here because the container is only reachable from localhost (via the port
 binding above), never from the public network directly.
 
+### Sub-path deployment (under an existing domain)
+
+If you can't get a dedicated (sub)domain — e.g. because someone else runs
+the primary web server and you need to fit under `https://example.com/htr-ground/`
+— set `HTR_GROUND_ROOT_PATH` and add a `Location` block to the existing
+virtualhost.
+
+**`.env`:**
+```bash
+HTR_GROUND_ROOT_PATH=/htr-ground
+HTR_GROUND_HTTPS=1
+```
+
+Restart the container so it picks up the new env var (`docker compose up -d`
+after `docker compose down`).
+
+**Apache — add to the existing HTTPS `<VirtualHost *:443>` block:**
+```apache
+<Location /htr-ground/>
+    ProxyPreserveHost On
+    ProxyPass        http://127.0.0.1:8000/
+    ProxyPassReverse http://127.0.0.1:8000/
+    RequestHeader set X-Forwarded-Proto "https"
+    RequestHeader set X-Forwarded-Prefix "/htr-ground"
+</Location>
+```
+
+The trailing slash on `ProxyPass http://127.0.0.1:8000/` matters — it tells
+Apache to strip `/htr-ground/` before forwarding. The Python app receives
+requests as if they came in at the root, but knows about the prefix via
+`root_path` so it can build correct redirect URLs.
+
+**nginx** — the equivalent block in an existing `server` block:
+```nginx
+location /htr-ground/ {
+    proxy_pass http://127.0.0.1:8000/;
+    proxy_http_version 1.1;
+    proxy_set_header Host              $host;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Prefix /htr-ground;
+}
+```
+
+Any `HTR_GROUND_ROOT_PATH` value works — pick whatever prefix suits your
+setup (`/htr`, `/htrg`, `/tools/htr-ground`, …). Just make sure the Apache
+`<Location>` (or nginx `location`) matches, and there's no other service
+already using that path.
+
 ### Presence and workers
 
 Presence is in-memory in the FastAPI process. The compose config uses a
