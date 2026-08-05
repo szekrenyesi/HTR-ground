@@ -138,6 +138,75 @@ def _user_can_see(user_path: str, username: Optional[str]) -> bool:
     )
 
 
+def count_statuses(user_path: str, username: Optional[str] = None) -> dict:
+    """Rekurzívan végigmegy a `user_path` alatti fán, minden pár státuszát
+    aggregálja. ACL-tudatos: a rejtett almappák nem számítanak bele.
+
+    Visszatérés:
+      {
+        "counts": {"új": N, "folyamatban": N, ...},  # csak nem-nulla értékek
+        "total":  N,
+      }
+    """
+    from collections import OrderedDict
+    # Kezdetben minden érvényes státusz 0
+    counts = OrderedDict((s, 0) for s in meta.VALID_STATUSES)
+
+    if not _user_can_see(user_path, username):
+        return {"counts": {}, "total": 0}
+
+    root = resolve_safe(user_path)
+    if not root.is_dir():
+        return {"counts": {}, "total": 0}
+
+    admin = is_admin_user(username)
+    cfg = _projects_cfg()
+
+    def _walk(folder: Path, rel: str):
+        # Az aktuális mappa párainak státuszgyűjtése
+        grouped: Dict[str, dict] = {}
+        for entry in folder.iterdir():
+            if entry.name.startswith("."):
+                continue
+            if entry.is_dir():
+                # Almappa ACL check
+                child_rel = f"{rel}/{entry.name}" if rel else entry.name
+                if not acl.is_visible(child_rel, username, is_admin=admin, projects_cfg=cfg):
+                    continue
+                _walk(entry, child_rel)
+                continue
+            if not entry.is_file():
+                continue
+            classified = _classify(entry.name)
+            if classified is None:
+                continue
+            basename, kind, _fmt = classified
+            grouped.setdefault(basename, {"image": False, "has_annotation": False})
+            if kind == "image":
+                grouped[basename]["image"] = True
+            else:
+                grouped[basename]["has_annotation"] = True
+
+        for basename, b in grouped.items():
+            # Csak akkor számít, ha van kép VAGY annotáció
+            if not (b["image"] or b["has_annotation"]):
+                continue
+            m = meta.read(folder, basename)
+            status = m.get("status", meta.DEFAULT_STATUS)
+            if status in counts:
+                counts[status] += 1
+
+    _walk(root, user_path.strip("/"))
+
+    # Csak azokat a státuszokat adjuk vissza, ahol > 0 — a UI ezekből épít badge-eket
+    # de meghagyjuk a rendezést (VALID_STATUSES sorrend)
+    nonzero = OrderedDict((s, n) for s, n in counts.items() if n > 0)
+    return {
+        "counts": dict(nonzero),
+        "total":  sum(nonzero.values()),
+    }
+
+
 def list_folder(user_path: str, username: Optional[str] = None) -> dict:
     """Egy mappa tartalmának JSON-esítése a frontend számára.
 
@@ -174,9 +243,11 @@ def list_folder(user_path: str, username: Optional[str] = None) -> dict:
             if not acl.is_visible(rel_child, username, is_admin=admin, projects_cfg=cfg):
                 continue
             subfolders.append({
-                "name": entry.name,
-                "path": rel_child,
+                "name":     entry.name,
+                "path":     rel_child,
                 "modified": stat.st_mtime,
+                # Az almappa rekurzív statisztikája — a UI kis dot-sávokra bontja
+                "stats":    count_statuses(rel_child, username),
             })
             continue
 
@@ -225,6 +296,7 @@ def list_folder(user_path: str, username: Optional[str] = None) -> dict:
         "breadcrumb": _build_breadcrumb(user_path),
         "subfolders": subfolders,
         "pairs":      pairs,
+        "stats":      count_statuses(user_path, username),
     }
 
 

@@ -3,6 +3,7 @@
 const contentEl    = document.getElementById('content');
 const breadcrumbEl = document.getElementById('breadcrumb');
 const loginStatus  = document.getElementById('login-status');
+const statsBar     = document.getElementById('stats-bar');
 
 // Sub-path deployment: a HTML meta tagből vesszük a prefixet.
 // Üres string root deployment esetén; pl. "/htr-ground" sub-path módban.
@@ -77,7 +78,11 @@ function renderSubfolders(subfolders) {
       <span class="icon">📁</span>
       <div class="meta">
         <div class="name">${esc(f.name)}</div>
+        ${renderInlineStats(f.stats)}
       </div>
+      <button type="button" class="folder-export-btn"
+              data-export-path="${esc(f.path)}"
+              title="Ez az almappa exportálása ZIP-be">Export ↓</button>
       <span class="modified">${fmtDate(f.modified)}</span>
     </a>
   `).join('');
@@ -85,6 +90,17 @@ function renderSubfolders(subfolders) {
     <div class="section-title">Almappák (${subfolders.length})</div>
     <div class="item-list">${items}</div>
   `;
+}
+
+// Kompakt egy soros stats a mappa sorába — halványabb, kis dot + szám csak
+function renderInlineStats(stats) {
+  if (!stats || !stats.total) return '';
+  const parts = Object.entries(stats.counts).map(([status, count]) => {
+    const cls = statusCssClass(status);
+    return `<span class="inline-stat"><span class="stat-dot ${cls}"></span>${count} ${esc(status)}</span>`;
+  });
+  parts.push(`<span class="inline-stat-total">${stats.total} összesen</span>`);
+  return `<div class="inline-stats">${parts.join('')}</div>`;
 }
 
 function fmtIso(iso) {
@@ -227,13 +243,21 @@ async function updateStatus(path, basename, newStatus) {
   }
 }
 
-// Kliens-oldali event delegáció: badge kattintás vs. sor kattintás
+// Kliens-oldali event delegáció: badge / almappa-export / sor kattintás
 document.addEventListener('click', ev => {
   const badge = ev.target.closest('.status-badge');
   if (badge) {
     ev.preventDefault();
     ev.stopPropagation();
     openStatusMenu(badge);
+    return;
+  }
+  // Almappa Export gomb — ne indítson navigációt a mappára, csak a modalt nyissa
+  const folderExport = ev.target.closest('.folder-export-btn');
+  if (folderExport) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    openExportModal(folderExport.dataset.exportPath);
     return;
   }
   const item = ev.target.closest('.item[data-href]');
@@ -273,10 +297,193 @@ async function loadFolder(path) {
     }
     const body = await res.json();
     renderBreadcrumb(body.breadcrumb);
+    renderStats(body.stats, !body.path);  // atRoot = üres path → nincs fejléc stats
     const html = renderSubfolders(body.subfolders) + renderPairs(body.pairs, body.path);
     contentEl.innerHTML = html || '<div class="state-msg">Üres mappa.</div>';
+    // Fejléc Export gomb: csak akkor, ha ebben a mappában vannak PÁROK
+    // (különben csak almappák — azoknak saját Export gombjuk van)
+    exportBtn.hidden = !body.pairs || body.pairs.length === 0;
   } catch (err) {
     contentEl.innerHTML = `<div class="state-msg error">Hiba: ${esc(err.message)}</div>`;
+    exportBtn.hidden = true;
+    statsBar.hidden = true;
+  }
+}
+
+// Fejléc stats — a body.stats.counts sorrendjében (workflow-sorrend). A
+// gyökérben (path === "") NEM mutatjuk, mert az összes projekt aggregátuma
+// információként nem hasznos.
+function renderStats(stats, atRoot) {
+  if (atRoot || !stats || !stats.total) {
+    statsBar.hidden = true;
+    return;
+  }
+  const parts = [];
+  const entries = Object.entries(stats.counts);
+  entries.forEach(([status, count], i) => {
+    const cls = statusCssClass(status);
+    parts.push(`
+      <span class="stat-item">
+        <span class="stat-dot ${cls}"></span>
+        <span class="stat-count">${count}</span>
+        <span class="stat-label">${esc(status)}</span>
+      </span>
+    `);
+    if (i < entries.length - 1) parts.push('<span class="stat-sep">·</span>');
+  });
+  parts.push(`<span class="stat-total">${stats.total} összesen</span>`);
+  statsBar.innerHTML = parts.join('');
+  statsBar.hidden = false;
+}
+
+// ─── Export modal ─────────────────────────────────────────────────
+const exportBtn      = document.getElementById('export-btn');
+const exportBackdrop = document.getElementById('export-backdrop');
+const exportClose    = document.getElementById('export-close');
+const exportCancel   = document.getElementById('export-cancel');
+const exportSubmit   = document.getElementById('export-submit');
+const exportTarget   = document.getElementById('export-target');
+const exportRecursive = document.getElementById('export-recursive');
+const exportCheckAll  = document.getElementById('export-check-all');
+const exportChecks    = () => document.querySelectorAll(
+  '.export-check-sub input[type="checkbox"]'
+);
+const exportToast    = document.getElementById('export-toast');
+
+// Az éppen exportálandó path — a modal ezt küldi az API-nak
+let exportModalPath = '';
+
+function openExportModal(path) {
+  exportModalPath = path || currentPath();
+  exportTarget.textContent = exportModalPath ? `/${exportModalPath}` : '/projects (gyökér)';
+  exportBackdrop.hidden = false;
+  updateExportSubmitState();
+}
+function closeExportModal() {
+  exportBackdrop.hidden = true;
+}
+
+function updateExportSubmitState() {
+  const anyChecked = Array.from(exportChecks()).some(c => c.checked);
+  exportSubmit.disabled = !anyChecked;
+
+  // A "mind" checkbox állapota: teljesen be = checked, teljesen ki = unchecked,
+  // részleges = indeterminate
+  const all = Array.from(exportChecks());
+  const checkedCount = all.filter(c => c.checked).length;
+  if (checkedCount === 0)            { exportCheckAll.checked = false; exportCheckAll.indeterminate = false; }
+  else if (checkedCount === all.length) { exportCheckAll.checked = true;  exportCheckAll.indeterminate = false; }
+  else                                { exportCheckAll.checked = false; exportCheckAll.indeterminate = true;  }
+}
+
+exportBtn.addEventListener('click', () => openExportModal(currentPath()));
+exportClose.addEventListener('click', closeExportModal);
+exportCancel.addEventListener('click', closeExportModal);
+exportBackdrop.addEventListener('click', ev => {
+  if (ev.target === exportBackdrop) closeExportModal();
+});
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape' && !exportBackdrop.hidden) closeExportModal();
+});
+
+// "mind" toggle
+exportCheckAll.addEventListener('change', () => {
+  const on = exportCheckAll.checked;
+  exportChecks().forEach(c => { c.checked = on; });
+  updateExportSubmitState();
+});
+// Egyedi checkboxok
+exportChecks().forEach(c => c.addEventListener('change', updateExportSubmitState));
+
+// Export gomb → letöltés
+exportSubmit.addEventListener('click', async () => {
+  const formats = [];
+  let includeImages = 0, includeSidecars = 0;
+  exportChecks().forEach(c => {
+    if (!c.checked) return;
+    if (c.dataset.format) formats.push(c.dataset.format);
+    else if (c.dataset.extra === 'images')   includeImages   = 1;
+    else if (c.dataset.extra === 'sidecars') includeSidecars = 1;
+  });
+
+  const params = new URLSearchParams({
+    path: exportModalPath,
+    formats: formats.join(','),
+    include_images:   String(includeImages),
+    include_sidecars: String(includeSidecars),
+    recursive: exportRecursive.checked ? '1' : '0',
+  });
+
+  const previousText = exportSubmit.textContent;
+  exportSubmit.disabled = true;
+  exportSubmit.textContent = 'Készül…';
+
+  try {
+    const res = await fetch(api(`/api/project-export?${params}`));
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); if (j.detail) msg = j.detail; } catch(_) {}
+      throw new Error(msg);
+    }
+    // Fájlnév a Content-Disposition-ből
+    const cd = res.headers.get('content-disposition') || '';
+    const nameMatch = cd.match(/filename="?([^"]+)"?/i);
+    const filename  = nameMatch ? nameMatch[1] : 'export.zip';
+
+    // Warning-ok (opcionális)
+    const warnHeader = res.headers.get('x-htr-export-warnings');
+    const warnings   = warnHeader ? JSON.parse(warnHeader) : null;
+
+    const blob = await res.blob();
+    downloadBlob(blob, filename);
+
+    closeExportModal();
+    if (warnings) showToast('warn', `Export kész — figyelmeztetésekkel:`, warnings);
+    else          showToast('ok',   `Export kész: ${filename}`);
+  } catch (err) {
+    showToast('err', `Export hiba: ${err.message}`);
+  } finally {
+    exportSubmit.disabled = false;
+    exportSubmit.textContent = previousText;
+    updateExportSubmitState();
+  }
+});
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function showToast(kind, message, warnings) {
+  exportToast.className = `export-toast ${kind}`;
+  let html = `<button class="toast-close" type="button" aria-label="Bezár">×</button>`;
+  html += `<div><strong>${esc(message)}</strong></div>`;
+  if (warnings) {
+    const parts = [];
+    if (warnings.skipped_pdf?.length) {
+      parts.push(`<li>${warnings.skipped_pdf.length} pár PDF-ként kihagyva (nincs kép)</li>`);
+    }
+    if (warnings.no_annotation?.length) {
+      parts.push(`<li>${warnings.no_annotation.length} pár annotáció nélkül</li>`);
+    }
+    if (warnings.conversion_error?.length) {
+      parts.push(`<li>${warnings.conversion_error.length} konverziós hiba</li>`);
+    }
+    if (parts.length) html += `<ul>${parts.join('')}</ul>`;
+  }
+  exportToast.innerHTML = html;
+  exportToast.hidden = false;
+  exportToast.querySelector('.toast-close').addEventListener('click', () => {
+    exportToast.hidden = true;
+  });
+  // Auto-hide 8 mp után, ha nem warning
+  if (kind === 'ok') {
+    setTimeout(() => { exportToast.hidden = true; }, 4000);
   }
 }
 

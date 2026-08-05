@@ -57,6 +57,7 @@ from .projects import (
 )
 from . import meta as pair_meta
 from . import presence as presence_mod
+from . import batch_export
 from .schema import Page
 
 
@@ -672,3 +673,74 @@ def api_presence_get(
     """Aktuális presence egy párra — használhatja az editor beérkezéskor."""
     others = presence_mod.format_for_pair(path, basename, exclude=user)
     return {"others": others}
+
+
+# ─── Kötegelt export ─────────────────────────────────────────────────────
+@app.get("/api/project-export")
+def api_project_export(
+    path: str = "",
+    formats: str = "",
+    include_images: int = 0,
+    include_sidecars: int = 0,
+    recursive: int = 1,
+    user: str = Depends(require_auth),
+):
+    """Egy mappa (opcionálisan almappákkal) exportja ZIP-be.
+
+    Query paraméterek:
+        - `path`              : projekt-fa path (üres = gyökér)
+        - `formats`           : vesszővel elválasztva: alto-xml,page-xml,json,pdf
+        - `include_images`    : 1 = képek is benne (default: 0)
+        - `include_sidecars`  : 1 = `.htrground-meta.json` sidecarok (default: 0)
+        - `recursive`         : 1 = almappák is (default: 1)
+
+    Legalább az egyiknek pipálva kell lennie: `formats`, `include_images`,
+    `include_sidecars`. Enélkül 400.
+
+    A warning-ok (kihagyott PDF-ek, konverziós hibák) az `X-HTR-Export-Warnings`
+    header-be kerülnek JSON-ként; ha nincs, a header hiányzik.
+    """
+    # ACL: a mappa látható-e a usernek
+    from .projects import _user_can_see  # nem-nyilvános, de itt kényelmes
+    if not _user_can_see(path, user):
+        raise HTTPException(status_code=403, detail=f"Nincs jogosultság: {path!r}")
+
+    fmt_list = [f.strip() for f in formats.split(",") if f.strip()]
+    inc_images   = bool(include_images)
+    inc_sidecars = bool(include_sidecars)
+    if not fmt_list and not inc_images and not inc_sidecars:
+        raise HTTPException(
+            status_code=400,
+            detail="Legalább egy formátumot vagy képet/sidecart ki kell választani.",
+        )
+
+    try:
+        zip_bytes, warnings = batch_export.build_zip(
+            path,
+            fmt_list,
+            include_images=inc_images,
+            include_sidecars=inc_sidecars,
+            recursive=bool(recursive),
+        )
+    except PathEscapeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except NotADirectoryError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export hiba: {e}")
+
+    from fastapi.responses import Response as _Resp
+    headers = {
+        "Content-Disposition": f'attachment; filename="{batch_export.zip_filename_for(path)}"',
+    }
+    warn_header = batch_export.encode_warnings_header(warnings)
+    if warn_header:
+        headers["X-HTR-Export-Warnings"] = warn_header
+        # CORS-hoz meg kell mondani a böngészőnek, hogy expose-oljuk ezt a headert
+        headers["Access-Control-Expose-Headers"] = "X-HTR-Export-Warnings, Content-Disposition"
+    else:
+        headers["Access-Control-Expose-Headers"] = "Content-Disposition"
+
+    return _Resp(content=zip_bytes, media_type="application/zip", headers=headers)

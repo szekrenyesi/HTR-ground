@@ -19,13 +19,80 @@
 
 <main>
   <div class="container">
-    <nav class="breadcrumb-wrap" id="breadcrumb" aria-label="Navigáció"></nav>
+    <div class="breadcrumb-row">
+      <nav class="breadcrumb-wrap" id="breadcrumb" aria-label="Navigáció"></nav>
+      <button type="button" class="export-btn" id="export-btn" title="Ez a mappa exportálása ZIP-be" hidden>Export ↓</button>
+    </div>
+
+    <div class="stats-bar" id="stats-bar" hidden></div>
 
     <div id="content">
       <div class="state-msg">Betöltés…</div>
     </div>
   </div>
 </main>
+
+<!-- Export modal -->
+<div class="export-modal-backdrop" id="export-backdrop" hidden>
+  <div class="export-modal" role="dialog" aria-labelledby="export-title" aria-modal="true">
+    <div class="export-header">
+      <h2 id="export-title">Export ZIP-be</h2>
+      <button type="button" class="export-close" id="export-close" aria-label="Bezárás">×</button>
+    </div>
+
+    <div class="export-body">
+      <p class="export-target" id="export-target"></p>
+
+      <p class="export-hint">Mit tartalmazzon a ZIP?</p>
+      <div class="export-check-group">
+        <label class="export-check export-check-all">
+          <input type="checkbox" id="export-check-all">
+          <span><strong>mind</strong></span>
+        </label>
+
+        <div class="export-check-sub">
+          <label class="export-check">
+            <input type="checkbox" data-format="alto-xml">
+            <span>alto  <em>(ALTO XML annotáció)</em></span>
+          </label>
+          <label class="export-check">
+            <input type="checkbox" data-format="page-xml">
+            <span>page  <em>(PAGE XML annotáció)</em></span>
+          </label>
+          <label class="export-check">
+            <input type="checkbox" data-format="json">
+            <span>json  <em>(belső JSON annotáció)</em></span>
+          </label>
+          <label class="export-check">
+            <input type="checkbox" data-format="pdf">
+            <span>pdf   <em>(kereshető PDF)</em></span>
+          </label>
+          <label class="export-check">
+            <input type="checkbox" data-extra="images">
+            <span>kép   <em>(eredeti képfájlok)</em></span>
+          </label>
+          <label class="export-check">
+            <input type="checkbox" data-extra="sidecars">
+            <span>meta  <em>(státusz + audit sidecarok)</em></span>
+          </label>
+        </div>
+      </div>
+
+      <label class="export-check export-recursive">
+        <input type="checkbox" id="export-recursive" checked>
+        <span>Almappák is</span>
+      </label>
+    </div>
+
+    <div class="export-footer">
+      <button type="button" class="export-cancel" id="export-cancel">Mégse</button>
+      <button type="button" class="export-submit" id="export-submit" disabled>Export ZIP</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast a warning-hoz -->
+<div class="export-toast" id="export-toast" hidden></div>
 
 <footer class="site-footer">
   © 2026 Szekrényes István

@@ -235,6 +235,9 @@ after `docker compose down`).
 
 **Apache — add to the existing HTTPS `<VirtualHost *:443>` block:**
 ```apache
+# /htr-ground (no trailing slash) → redirect to /htr-ground/
+RedirectMatch permanent "^/htr-ground$" "/htr-ground/"
+
 <Location /htr-ground/>
     ProxyPreserveHost On
     ProxyPass        http://127.0.0.1:8000/
@@ -244,10 +247,18 @@ after `docker compose down`).
 </Location>
 ```
 
-The trailing slash on `ProxyPass http://127.0.0.1:8000/` matters — it tells
-Apache to strip `/htr-ground/` before forwarding. The Python app receives
-requests as if they came in at the root, but knows about the prefix via
-`root_path` so it can build correct redirect URLs.
+Two trailing-slash details that matter:
+
+- `ProxyPass http://127.0.0.1:8000/` (with trailing slash) — tells Apache to
+  strip `/htr-ground/` before forwarding. The Python app receives requests as
+  if they came in at the root, but knows about the prefix via `root_path` so
+  it can build correct redirect URLs.
+- `<Location /htr-ground/>` only matches URLs starting with `/htr-ground/`.
+  A visitor typing `https://example.com/htr-ground` (no trailing slash) would
+  get a 404. The `RedirectMatch` line above adds the slash for them.
+
+Modules required: `proxy`, `proxy_http`, `headers` (`sudo a2enmod proxy
+proxy_http headers`).
 
 **nginx** — the equivalent block in an existing `server` block:
 ```nginx

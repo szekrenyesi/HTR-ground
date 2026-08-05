@@ -24,15 +24,196 @@ main {
   flex: 1; padding: 24px 15px 40px;
 }
 
-/* Breadcrumb */
+/* Breadcrumb + export gomb egy sorban */
+.breadcrumb-row {
+  display: flex; align-items: stretch; gap: 10px;
+  margin-bottom: 20px;
+}
 .breadcrumb-wrap {
+  flex: 1; min-width: 0;
   background: #1c1d26; border: 1px solid #2a2b3a; border-radius: 6px;
-  padding: 10px 14px; margin-bottom: 20px; font-size: 13px;
+  padding: 10px 14px; font-size: 13px;
 }
 .breadcrumb-wrap a { color: #7dcc9a; text-decoration: none; }
 .breadcrumb-wrap a:hover { color: #a5d9ba; }
 .breadcrumb-wrap .sep { color: #444; margin: 0 6px; }
 .breadcrumb-wrap .current { color: #d8d8e0; font-weight: 500; }
+
+.export-btn {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  background: #25263a; color: #7dcc9a; border: 1px solid #35364a;
+  border-radius: 6px; font-size: 13px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.export-btn:hover { background: #2e304a; color: #a5d9ba; border-color: #4a4c6a; }
+.export-btn[hidden] { display: none; }
+
+/* Almappa sorban kis Export gomb, jobb szélen */
+.item .folder-export-btn {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  background: #25263a; color: #7dcc9a; border: 1px solid #35364a;
+  border-radius: 4px; font-size: 11px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.item .folder-export-btn:hover {
+  background: #2e304a; color: #a5d9ba; border-color: #4a4c6a;
+}
+
+/* ─── Export modal ──────────────────────────────────────────────── */
+.export-modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+.export-modal-backdrop[hidden] { display: none; }
+
+.export-modal {
+  background: #1c1d26; border: 1px solid #35364a; border-radius: 8px;
+  max-width: 480px; width: 100%; max-height: 90vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+.export-header {
+  padding: 16px 20px; border-bottom: 1px solid #2a2b3a;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.export-header h2 {
+  font-size: 16px; font-weight: 600; margin: 0; color: #d8d8e0;
+}
+.export-close {
+  background: transparent; border: none; color: #888;
+  font-size: 22px; line-height: 1; cursor: pointer;
+  padding: 0 4px;
+}
+.export-close:hover { color: #d8d8e0; }
+
+.export-body {
+  padding: 16px 20px; overflow-y: auto;
+}
+.export-target {
+  font-size: 12px; color: #888; margin: 0 0 14px;
+  font-family: monospace;
+  background: #13141a; padding: 8px 10px; border-radius: 4px;
+  border: 1px solid #25263a;
+}
+.export-hint {
+  font-size: 12px; color: #888; margin: 0 0 8px;
+  text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
+}
+.export-check-group { display: flex; flex-direction: column; gap: 2px; }
+.export-check-sub { display: flex; flex-direction: column; gap: 2px; padding-left: 16px; }
+.export-check {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 4px;
+  color: #c8c8d8; font-size: 13px; cursor: pointer;
+  user-select: none;
+}
+.export-check:hover { background: #25263a; }
+.export-check input[type="checkbox"] {
+  margin: 0; cursor: pointer;
+  accent-color: #7dcc9a;
+}
+.export-check em {
+  color: #666; font-style: normal; font-size: 11px; margin-left: 4px;
+}
+.export-check-all { border-bottom: 1px solid #2a2b3a; padding-bottom: 8px; margin-bottom: 4px; }
+.export-recursive { margin-top: 12px; padding-top: 12px; border-top: 1px solid #2a2b3a; }
+
+.export-footer {
+  padding: 12px 20px; border-top: 1px solid #2a2b3a;
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+.export-cancel, .export-submit {
+  padding: 7px 16px; border-radius: 5px; font-size: 13px; font-weight: 500;
+  border: 1px solid #35364a; cursor: pointer;
+}
+.export-cancel {
+  background: transparent; color: #888;
+}
+.export-cancel:hover { background: #25263a; color: #d8d8e0; }
+.export-submit {
+  background: #2a5a3a; color: #7dcc9a; border-color: transparent;
+  font-weight: 600;
+}
+.export-submit:hover:not(:disabled) { background: #336a46; color: #a5d9ba; }
+.export-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Toast a warningokhoz / eredményhez */
+.export-toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: #1c1d26; border: 1px solid #35364a; border-radius: 6px;
+  padding: 14px 18px; max-width: 400px;
+  color: #d8d8e0; font-size: 13px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  z-index: 200;
+}
+.export-toast[hidden] { display: none; }
+.export-toast.ok { border-left: 3px solid #7dcc9a; }
+.export-toast.warn { border-left: 3px solid #e8b84b; }
+.export-toast.err { border-left: 3px solid #e88484; }
+.export-toast strong { color: #f0d060; }
+.export-toast ul { margin: 6px 0 0; padding-left: 20px; font-size: 12px; color: #b0b0c8; }
+.export-toast .toast-close {
+  float: right; background: transparent; border: none; color: #666;
+  cursor: pointer; padding: 0; margin-left: 12px; font-size: 16px;
+}
+.export-toast .toast-close:hover { color: #d8d8e0; }
+
+/* Stats-sor a breadcrumb alatt */
+.stats-bar {
+  display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center;
+  padding: 8px 14px; margin-bottom: 16px;
+  background: #16171f; border: 1px solid #25263a; border-radius: 6px;
+  font-size: 12px; color: #888;
+}
+.stats-bar[hidden] { display: none; }
+.stats-bar .stat-item {
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.stats-bar .stat-dot {
+  display: inline-block;
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0;
+}
+.stats-bar .stat-count { color: #d8d8e0; font-weight: 500; }
+.stats-bar .stat-label { color: #888; }
+.stats-bar .stat-sep {
+  color: #333; padding: 0 4px;
+}
+.stats-bar .stat-total {
+  margin-left: auto;
+  color: #666; font-size: 11px;
+}
+
+/* A státusz-badge színpalettát átvesszük a dotokra is */
+.stat-dot.status-új              { background: #7a8ec4; }
+.stat-dot.status-folyamatban     { background: #f0d060; }
+.stat-dot.status-ellenőrzésre-vár { background: #e8a484; }
+.stat-dot.status-kész            { background: #7dcc9a; }
+
+/* Kompakt inline stats — az almappa sor MELLÉ, halványabban */
+.inline-stats {
+  display: flex; flex-wrap: wrap; gap: 4px 10px;
+  align-items: center;
+  font-size: 11px; color: #666;
+  margin-top: 4px;
+}
+.inline-stat {
+  display: inline-flex; align-items: center; gap: 4px;
+  color: #888;
+}
+.inline-stat .stat-dot { width: 6px; height: 6px; }
+.inline-stat-total {
+  color: #555; font-size: 10px;
+  padding-left: 6px; border-left: 1px solid #2a2b3a;
+  margin-left: 4px;
+}
 
 /* Section header */
 .section-title {
