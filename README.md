@@ -23,8 +23,10 @@ machine learning, which is precisely what this tool helps produce.
   searchable PDF. Works even from `file://` (client-side JSON only).
 - **Projects** (`/projects`, login required) — browse a server-side `projects/`
   folder tree, open image+transcript pairs directly, save-in-place, set per-file
-  statuses, see who else is currently editing what. Per-user login with
-  per-project visibility rules. Ideal when many people work on a shared corpus.
+  statuses, see per-folder status summaries, batch-export folders as ZIP with
+  chosen formats, and see who else is currently editing what. Per-user login
+  with per-project visibility rules. Ideal when many people work on a shared
+  corpus.
 
 ---
 
@@ -55,6 +57,7 @@ HTR-ground/
 │       ├── projects.py          # safe path resolve, pair detection, load/save
 │       ├── meta.py              # per-file `.htrground-meta.json` sidecar (status + audit)
 │       ├── presence.py          # in-memory presence tracker (who is editing what)
+│       ├── batch_export.py      # ZIP export: multi-format, auto-convert from freshest
 │       ├── schema.py            # Page / Region / Line Pydantic models
 │       └── converters/
 │           ├── __init__.py      # detect_format + convert + export dispatch
@@ -486,11 +489,12 @@ return HTTP 401 as JSON if the session cookie is missing.
 | ------ | --------------------------------------- | --------------------------------------------------------- |
 | GET    | `/projects`, `/projects/{path}`         | Projects browser HTML (deep-link OK)                      |
 | GET    | `/projects/edit?path=…&basename=…`      | Editor in project mode                                    |
-| GET    | `/api/projects`, `/api/projects/{path}` | Folder listing (JSON) — includes `meta` + `presence`      |
+| GET    | `/api/projects`, `/api/projects/{path}` | Folder listing (JSON) — includes `meta`, `presence`, per-folder `stats` |
 | GET    | `/api/project-file?path=…&basename=…`   | Load one pair → `{page, image_url, save_format, meta, …}` |
 | PUT    | `/api/project-file?path=…&basename=…`   | Save one pair in-place; auto-records `edited_by/at`       |
 | GET    | `/api/project-image?path=…&basename=…`  | Serve the pair's image file                               |
 | PUT    | `/api/project-status?path=…&basename=…` | Set status; body: `{status, notes?}`                      |
+| GET    | `/api/project-export?path=…&formats=…`  | Batch export folder as ZIP (multi-format, auto-convert)   |
 | POST   | `/api/presence/heartbeat`               | Client tells the server "I'm still here"                  |
 | POST   | `/api/presence/leave`                   | Explicit leave (browser `beforeunload`)                   |
 | GET    | `/api/presence?path=…&basename=…`       | Who else is currently on this file                        |
@@ -604,6 +608,54 @@ Sidecar shape:
 
 Sidecars are written atomically (`.tmp` + `replace()`). They are not
 listed as annotations — the pair detector explicitly skips them.
+
+## Status summary
+
+Every folder listing (`GET /api/projects/{path}`) includes recursive status
+aggregates:
+
+- A `stats` field on the response itself: total counts under the current path
+  (respecting ACL — hidden subfolders don't contribute).
+- A `stats` field on each subfolder entry: counts for just that subfolder's
+  subtree.
+
+The projects browser renders these as small color-coded dot rows:
+
+- **Header bar** (below the breadcrumb) — visible in any folder except the
+  `/projects` root; shows the aggregate for the current folder.
+- **Per-folder inline stats** — below each subfolder name; visible everywhere
+  including root. Lets you scan project-level progress without descending.
+
+Counts only include statuses with at least one file (zero-count statuses
+are omitted from the response).
+
+## Batch export
+
+The **Export ↓** button (in the header of leaf folders, or next to each
+subfolder in container folders) lets you download a ZIP of a folder's
+contents — with per-format selection and automatic conversion from the
+freshest available annotation.
+
+`GET /api/project-export?path=…&formats=…&include_images=1&include_sidecars=1&recursive=1`
+
+- `formats` is a comma-separated list of `alto-xml`, `page-xml`, `json`,
+  `pdf`. Combine with `include_images` and `include_sidecars` (all optional,
+  at least one required).
+- For each pair, each requested annotation format is either included as-is
+  (if that format already exists AND it's the newest annotation for the
+  pair by mtime), or converted on-the-fly from the newest annotation.
+- PDF requests fall back to a warning for pairs without an image.
+- Warnings (skipped PDFs, conversion errors, pairs without annotation) are
+  returned as JSON in an `X-HTR-Export-Warnings` response header.
+- ACL applies: the endpoint only exports what the current user can see.
+  Admin users bypass ACL.
+
+The ZIP preserves the original folder structure. Filename is derived from
+the requested path (`Bakonykuti/1949` → `Bakonykuti-1949.zip`).
+
+Deliberately NOT available from the `/projects` root — aggregating the
+entire corpus into one ZIP is rarely what you want. Export each project
+separately using its own Export button.
 
 ## Presence
 
