@@ -1,16 +1,24 @@
 """
 User admin CLI. Használat:
 
-    python -m app.users bootstrap                # első futáskor: auth.json + admin user
-    python -m app.users list
-    python -m app.users add <username> [display]  # jelszó interaktív, vagy --generate
+    python -m app.users bootstrap                     # első futáskor: auth.json + admin user
+    python -m app.users list                          # userek + adminok + csoport-tagságok
+    python -m app.users add <username> [display]      # jelszó interaktív, vagy --generate
     python -m app.users remove <username>
-    python -m app.users set-password <username>   # jelszó interaktív, vagy --generate
-    python -m app.users promote <username>        # admin flag beállítása
-    python -m app.users demote <username>         # admin flag levétele
+    python -m app.users set-password <username>       # jelszó interaktív, vagy --generate
+    python -m app.users promote <username>            # admin flag beállítása
+    python -m app.users demote <username>             # admin flag levétele
+
+    python -m app.users groups                        # csoportok + tagjaik listázása
+    python -m app.users group-add <username> <group>  # user hozzáadása csoporthoz
+    python -m app.users group-remove <username> <group>
 
 A jelszót SOHA nem tároljuk plaintext-ként — bcrypt hash-t rakunk az
 `auth.json`-be. A generált jelszó egyszer jelenik meg a terminálon.
+
+Csoportok: pl. `import` (webes upload). Admin implicit tagja minden
+csoportnak; az explicit tagságokat is nyilvántartjuk erre az esetre, ha
+később lemondanál a `is_admin` flagről.
 """
 from __future__ import annotations
 
@@ -157,18 +165,83 @@ def cmd_remove(args: argparse.Namespace) -> int:
 def cmd_list(args: argparse.Namespace) -> int:
     cfg = _load_or_fresh_config()
     users = cfg.get("users") or {}
+    groups = cfg.get("groups") or {}
     if not users:
         print("Nincs egy user sem. Használd: python -m app.users bootstrap")
         return 0
-    # Igazítás: leghosszabb usernév kiterjedésére
+
+    def _groups_for(name: str) -> str:
+        gs = sorted(g for g, members in groups.items() if name in (members or []))
+        return ", ".join(gs) if gs else "-"
+
+    # Igazítás: leghosszabb usernév / display-name szélességére
     max_name = max(len(u) for u in users)
     max_disp = max((len(u.get("display_name") or "") for u in users.values()), default=0)
-    print(f"{'USER'.ljust(max_name)}  {'DISPLAY NAME'.ljust(max_disp)}  ADMIN")
+    max_grp  = max((len(_groups_for(n)) for n in users), default=6)
+    max_grp  = max(max_grp, len("GROUPS"))
+
+    header = f"{'USER'.ljust(max_name)}  {'DISPLAY NAME'.ljust(max_disp)}  ADMIN  {'GROUPS'.ljust(max_grp)}"
+    print(header)
     for name in sorted(users.keys(), key=str.lower):
         u = users[name]
         disp  = u.get("display_name") or ""
         admin = "✓" if u.get("is_admin") else ""
-        print(f"{name.ljust(max_name)}  {disp.ljust(max_disp)}  {admin}")
+        grps  = _groups_for(name)
+        print(f"{name.ljust(max_name)}  {disp.ljust(max_disp)}  {admin.center(5)}  {grps.ljust(max_grp)}")
+    return 0
+
+
+# ─── Csoport-kezelés ────────────────────────────────────────────────────
+def cmd_groups(args: argparse.Namespace) -> int:
+    """Az összes csoport + tagjaik listája."""
+    cfg = _load_or_fresh_config()
+    groups = cfg.get("groups") or {}
+    if not groups:
+        print("Nincs egy csoport sem.")
+        return 0
+    max_name = max(len(g) for g in groups) if groups else 0
+    for name in sorted(groups.keys(), key=str.lower):
+        members = groups[name] or []
+        member_str = ", ".join(members) if members else "(üres)"
+        print(f"  {name.ljust(max_name)}  {member_str}")
+    return 0
+
+
+def cmd_group_add(args: argparse.Namespace) -> int:
+    cfg = _load_or_fresh_config()
+    users = cfg.get("users") or {}
+    if args.username not in users:
+        print(f"Nem létezik user: {args.username}", file=sys.stderr)
+        return 2
+    groups = cfg.setdefault("groups", {})
+    members = groups.setdefault(args.group, [])
+    if args.username in members:
+        print(f"{args.username} már tagja a(z) {args.group!r} csoportnak.")
+        return 0
+    members.append(args.username)
+    members.sort(key=str.lower)
+    auth.save_auth_config(cfg)
+    auth.reload_config()
+    print(f"✓ {args.username} hozzáadva a(z) {args.group!r} csoporthoz.")
+    return 0
+
+
+def cmd_group_remove(args: argparse.Namespace) -> int:
+    cfg = _load_or_fresh_config()
+    groups = cfg.get("groups") or {}
+    members = groups.get(args.group) or []
+    if args.username not in members:
+        print(f"{args.username} nem tagja a(z) {args.group!r} csoportnak.", file=sys.stderr)
+        return 2
+    members.remove(args.username)
+    # Ha üres marad, kivesszük a csoportot teljesen — tiszta config
+    if not members:
+        del cfg["groups"][args.group]
+        if not cfg["groups"]:
+            del cfg["groups"]
+    auth.save_auth_config(cfg)
+    auth.reload_config()
+    print(f"✓ {args.username} eltávolítva a(z) {args.group!r} csoportból.")
     return 0
 
 
@@ -252,6 +325,20 @@ def build_parser() -> argparse.ArgumentParser:
     dm = sub.add_parser("demote", help="Admin jog levétele")
     dm.add_argument("username")
     dm.set_defaults(func=cmd_demote)
+
+    # ─── Csoportok ─────────────────────────────
+    gs = sub.add_parser("groups", help="Csoportok és tagjaik listázása")
+    gs.set_defaults(func=cmd_groups)
+
+    ga = sub.add_parser("group-add", help="User hozzáadása egy csoporthoz")
+    ga.add_argument("username")
+    ga.add_argument("group", help="Csoport neve (pl. 'import')")
+    ga.set_defaults(func=cmd_group_add)
+
+    gr = sub.add_parser("group-remove", help="User eltávolítása egy csoportból")
+    gr.add_argument("username")
+    gr.add_argument("group")
+    gr.set_defaults(func=cmd_group_remove)
 
     return p
 

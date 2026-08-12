@@ -119,3 +119,89 @@ def test_bootstrap_with_force(reset_auth_config, monkeypatch):
     assert auth.is_admin_user("admin") is True
     # Alapból a régi userek eltűnnek — friss config
     assert auth.get_user("anna") is None
+
+
+# ─── Csoport-parancsok ─────────────────────────────────────────────────
+def test_groups_empty(reset_auth_config):
+    """Alapban nincs csoport (a conftest üres groups-szal indít)."""
+    rc, out, _ = _run(["groups"])
+    assert rc == 0
+    assert "Nincs" in out
+
+
+def test_group_add(reset_auth_config):
+    rc, out, _ = _run(["group-add", "anna", "import"])
+    assert rc == 0
+    assert "hozzáadva" in out
+    assert auth.is_in_group("anna", "import") is True
+    assert "import" in auth.user_groups("anna")
+
+
+def test_group_add_creates_group(reset_auth_config):
+    """Új csoport auto-létrejön, ha még nem létezik."""
+    assert not (auth.AUTH_CONFIG.get("groups") or {}).get("reviewer")
+    rc, _, _ = _run(["group-add", "anna", "reviewer"])
+    assert rc == 0
+    assert "anna" in auth.AUTH_CONFIG["groups"]["reviewer"]
+
+
+def test_group_add_duplicate_is_noop(reset_auth_config):
+    _run(["group-add", "anna", "import"])
+    rc, out, _ = _run(["group-add", "anna", "import"])
+    assert rc == 0
+    assert "már tagja" in out
+
+
+def test_group_add_unknown_user(reset_auth_config):
+    rc, _, err = _run(["group-add", "nincsilyen", "import"])
+    assert rc == 2
+    assert "Nem létezik" in err
+
+
+def test_group_remove(reset_auth_config):
+    _run(["group-add", "anna", "import"])
+    _run(["group-add", "bela", "import"])
+    rc, out, _ = _run(["group-remove", "anna", "import"])
+    assert rc == 0
+    assert "eltávolítva" in out
+    assert auth.is_in_group("anna", "import") is False
+    assert auth.is_in_group("bela", "import") is True
+
+
+def test_group_remove_deletes_empty_group(reset_auth_config):
+    """Ha kivesszük az utolsó tagot, a csoport törlődik teljesen."""
+    _run(["group-add", "anna", "import"])
+    _run(["group-remove", "anna", "import"])
+    groups = auth.AUTH_CONFIG.get("groups") or {}
+    assert "import" not in groups
+
+
+def test_group_remove_not_a_member(reset_auth_config):
+    rc, _, err = _run(["group-remove", "anna", "import"])
+    assert rc == 2
+    assert "nem tagja" in err
+
+
+def test_groups_lists_all(reset_auth_config):
+    _run(["group-add", "anna", "import"])
+    _run(["group-add", "bela", "reviewer"])
+    rc, out, _ = _run(["groups"])
+    assert rc == 0
+    assert "import" in out
+    assert "anna" in out
+    assert "reviewer" in out
+    assert "bela" in out
+
+
+def test_list_shows_group_column(reset_auth_config):
+    _run(["group-add", "anna", "import"])
+    rc, out, _ = _run(["list"])
+    assert rc == 0
+    assert "GROUPS" in out
+    # anna sorában szerepel az import
+    for line in out.splitlines():
+        if line.startswith("anna"):
+            assert "import" in line
+            break
+    else:
+        pytest.fail("Nincs anna sor a list outputban")

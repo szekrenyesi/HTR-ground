@@ -39,16 +39,116 @@ main {
 .breadcrumb-wrap .sep { color: #444; margin: 0 6px; }
 .breadcrumb-wrap .current { color: #d8d8e0; font-weight: 500; }
 
-.export-btn {
+/* Fejléc akció-gombok csoportja */
+.header-actions {
+  display: flex; align-items: stretch; gap: 8px;
   flex-shrink: 0;
+}
+.header-action-btn {
   padding: 8px 16px;
   background: #25263a; color: #7dcc9a; border: 1px solid #35364a;
   border-radius: 6px; font-size: 13px; font-weight: 500;
   cursor: pointer; white-space: nowrap;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.export-btn:hover { background: #2e304a; color: #a5d9ba; border-color: #4a4c6a; }
-.export-btn[hidden] { display: none; }
+.header-action-btn:hover { background: #2e304a; color: #a5d9ba; border-color: #4a4c6a; }
+.header-action-btn[hidden] { display: none; }
+
+/* Régi név-fenntartás */
+.export-btn { /* alias — a JS #export-btn-t még használja */ }
+
+/* Dropdown menu az „+ Új"-hoz */
+.dropdown-wrap { position: relative; }
+.dropdown-wrap[hidden] { display: none; }
+.dropdown-menu {
+  position: absolute; top: calc(100% + 4px); right: 0;
+  background: #1c1d26; border: 1px solid #35364a; border-radius: 6px;
+  padding: 4px; z-index: 20; min-width: 200px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+  display: none;
+}
+.dropdown-menu.open { display: block; }
+.dropdown-menu button {
+  display: block; width: 100%; text-align: left;
+  background: transparent; border: none; color: #c8c8d8;
+  font-size: 13px; padding: 8px 12px; border-radius: 4px;
+  cursor: pointer;
+}
+.dropdown-menu button:hover { background: #25263a; color: #d8d8e0; }
+
+/* Text input a mappa-név modalhoz */
+.text-input {
+  width: 100%; margin-top: 6px;
+  background: #25263a; border: 1px solid #35364a; color: #d8d8e0;
+  padding: 8px 10px; border-radius: 5px; font-size: 13px;
+  font-family: monospace;
+}
+.text-input:focus {
+  outline: none; border-color: #4a4c6a; background: #2e304a;
+}
+
+/* Fájl-kiválasztás gomb */
+.pick-btn {
+  padding: 8px 16px; margin-top: 8px;
+  background: #25263a; color: #7dcc9a; border: 1px dashed #4a4c6a;
+  border-radius: 5px; font-size: 13px; cursor: pointer;
+}
+.pick-btn:hover { background: #2e304a; color: #a5d9ba; }
+
+.upload-file-list {
+  margin-top: 12px; max-height: 240px; overflow-y: auto;
+  border: 1px solid #25263a; border-radius: 4px;
+  background: #13141a; padding: 6px;
+}
+.upload-file-list:empty { display: none; }
+.upload-file-list .file-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 3px 6px; font-family: monospace; font-size: 11px;
+  color: #b0b0c8;
+}
+.upload-file-list .file-row.rejected { color: #e88484; }
+.upload-file-list .file-row .size { color: #666; margin-left: 8px; }
+
+.upload-summary {
+  margin-top: 8px; font-size: 12px; color: #888;
+}
+.upload-summary .warn { color: #e8b84b; }
+
+/* Törlés modal */
+.delete-message {
+  font-size: 14px; color: #d8d8e0; margin: 0 0 8px;
+}
+.delete-message code {
+  background: #25263a; padding: 2px 6px; border-radius: 3px;
+  color: #f0d060; font-family: monospace;
+}
+.delete-details {
+  font-size: 12px; color: #888; margin: 0 0 12px;
+  background: #13141a; padding: 8px 12px; border-radius: 4px;
+  border: 1px solid #25263a;
+}
+.delete-warn {
+  color: #e88484; font-size: 12px; margin: 0;
+}
+.delete-submit {
+  padding: 7px 16px; border-radius: 5px; font-size: 13px; font-weight: 600;
+  background: #6a2a2a; color: #e88484; border: none; cursor: pointer;
+}
+.delete-submit:hover { background: #7a3535; color: #f0a0a0; }
+
+/* Admin sor-akció (× törlés) */
+.item .row-delete-btn {
+  flex-shrink: 0;
+  background: transparent; border: 1px solid transparent;
+  color: #555; font-size: 14px; line-height: 1;
+  padding: 4px 8px; border-radius: 4px;
+  cursor: pointer;
+  opacity: 0; transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+}
+.item:hover .row-delete-btn { opacity: 1; }
+.item .row-delete-btn:hover {
+  color: #e88484; border-color: #6a2a2a;
+}
 
 /* Almappa sorban kis Export gomb, jobb szélen */
 .item .folder-export-btn {

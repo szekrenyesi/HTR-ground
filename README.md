@@ -24,9 +24,10 @@ machine learning, which is precisely what this tool helps produce.
 - **Projects** (`/projects`, login required) — browse a server-side `projects/`
   folder tree, open image+transcript pairs directly, save-in-place, set per-file
   statuses, see per-folder status summaries, batch-export folders as ZIP with
-  chosen formats, and see who else is currently editing what. Per-user login
-  with per-project visibility rules. Ideal when many people work on a shared
-  corpus.
+  chosen formats, upload new folders and files (import group / admin), delete
+  folders and pairs (admin), and see who else is currently editing what.
+  Per-user login with per-project visibility rules. Ideal when many people
+  work on a shared corpus.
 
 ---
 
@@ -58,6 +59,7 @@ HTR-ground/
 │       ├── meta.py              # per-file `.htrground-meta.json` sidecar (status + audit)
 │       ├── presence.py          # in-memory presence tracker (who is editing what)
 │       ├── batch_export.py      # ZIP export: multi-format, auto-convert from freshest
+│       ├── importer.py          # create folder, upload files, delete (admin)
 │       ├── schema.py            # Page / Region / Line Pydantic models
 │       └── converters/
 │           ├── __init__.py      # detect_format + convert + export dispatch
@@ -296,10 +298,23 @@ password store is a flat JSON that only the CLI writes.
 python -m app.users bootstrap [--username admin] [--generate]  # first run
 python -m app.users add <username> [display] [--admin] [--generate]
 python -m app.users set-password <username> [--generate]
-python -m app.users list
+python -m app.users list                    # users + admin + group memberships
 python -m app.users remove <username>
-python -m app.users promote <username>    # grant admin
-python -m app.users demote <username>     # revoke admin
+python -m app.users promote <username>      # grant admin
+python -m app.users demote <username>       # revoke admin
+
+# Groups
+python -m app.users groups                          # list all groups + members
+python -m app.users group-add <username> <group>    # add member (creates group if new)
+python -m app.users group-remove <username> <group> # remove member (deletes group if empty)
+```
+
+Groups are created implicitly when you add the first member; they're
+removed when the last member leaves. Add someone to the `import` group to
+let them upload files from the web UI:
+
+```bash
+docker compose exec app python -m app.users group-add anna import
 ```
 
 Passwords are never stored in plaintext — the CLI writes bcrypt hashes. When
@@ -442,6 +457,23 @@ UI: the CLI manages the flat JSON file.
 
 Logout: `POST /logout` clears the session.
 
+### Groups
+
+Beyond `is_admin`, users can be members of named groups in a top-level
+`groups` map in `auth.json`. Admin users are implicit members of every
+group.
+
+```json
+"groups": {
+  "import": ["anna", "bela"]
+}
+```
+
+Currently only the `import` group is used — its members can create folders
+and upload files via the web UI (see [Import & delete](#import--delete)
+below). Adding more groups is a matter of wiring them into new endpoint
+dependencies.
+
 ### Per-project visibility (ACL)
 
 The `projects` map in `auth.json` restricts access. If a path is not listed,
@@ -495,6 +527,10 @@ return HTTP 401 as JSON if the session cookie is missing.
 | GET    | `/api/project-image?path=…&basename=…`  | Serve the pair's image file                               |
 | PUT    | `/api/project-status?path=…&basename=…` | Set status; body: `{status, notes?}`                      |
 | GET    | `/api/project-export?path=…&formats=…`  | Batch export folder as ZIP (multi-format, auto-convert)   |
+| POST   | `/api/project-folder`                   | Create folder (admin or `import` group); body `{path}`    |
+| POST   | `/api/project-upload?path=…`            | Upload files with manifest (admin or `import` group)      |
+| DELETE | `/api/project-folder?path=…`            | Recursive delete (admin only)                             |
+| DELETE | `/api/project-file?path=…&basename=…`   | Delete a pair — image + all annotations + sidecar (admin) |
 | POST   | `/api/presence/heartbeat`               | Client tells the server "I'm still here"                  |
 | POST   | `/api/presence/leave`                   | Explicit leave (browser `beforeunload`)                   |
 | GET    | `/api/presence?path=…&basename=…`       | Who else is currently on this file                        |
@@ -656,6 +692,50 @@ the requested path (`Bakonykuti/1949` → `Bakonykuti-1949.zip`).
 Deliberately NOT available from the `/projects` root — aggregating the
 entire corpus into one ZIP is rarely what you want. Export each project
 separately using its own Export button.
+
+## Import & delete
+
+The projects browser can create folders, upload files (single or entire
+directories), and delete folders/pairs — all from the header **+ Új ↓**
+dropdown menu and a small **×** button that appears on hover on each row.
+Visibility of these controls depends on the current user's role.
+
+### Who can do what
+
+- **Create folder** and **upload files** — admin **or** member of the
+  `import` group. The target path must be visible to the user (non-admin
+  is subject to ACL; admin bypasses).
+- **Delete folder** and **delete pair** — admin only. Deletion is
+  destructive and irreversible, hence the tighter permission.
+
+### Upload rules
+
+- Allowed extensions: `.jpg`, `.jpeg`, `.png`, `.tif`, `.tiff`, `.gif`,
+  `.xml`, `.json`. Anything else is silently skipped with a warning.
+- **No overwriting** — if a file already exists on the server, the upload
+  is skipped for that file (never destructive).
+- **No dotfiles** — filenames starting with `.` (including
+  `.htrground.json` config or `.htrground-meta.json` sidecar) are rejected.
+  Config files should be edited on the server directly.
+- Path safety — `..`, absolute paths, or any escape from the target
+  directory returns HTTP 400.
+
+The **Mappa feltöltése** (folder upload) option uses the browser's
+`webkitdirectory` support — pick a folder, and every file inside comes
+along with its relative path preserved. Empty folders don't survive
+(only files with allowed extensions do).
+
+### Delete semantics
+
+- **Folder delete** — recursive; every file and subfolder underneath is
+  removed. The root `/projects/` itself cannot be deleted.
+- **Pair delete** — removes the image, every annotation file for that
+  basename, and the sidecar (`.htrground-meta.json`). The containing
+  folder stays.
+
+Both delete operations prompt for confirmation in the UI. For folder
+deletion, the confirmation also shows the aggregate status counts of
+what's about to disappear.
 
 ## Presence
 

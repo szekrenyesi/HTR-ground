@@ -194,6 +194,32 @@ def is_admin_user(username: Optional[str]) -> bool:
     return bool(user.get("is_admin", False))
 
 
+def is_in_group(username: Optional[str], group_name: str) -> bool:
+    """Az `username` tagja-e a megadott csoportnak.
+
+    - Admin user implicit tagja **minden** csoportnak.
+    - Nem-létező user vagy nem-létező csoport → False.
+    - A `groups` mező az `auth.json` gyökerében van, formátuma:
+        "groups": { "import": ["anna", "bela"], "reviewer": ["lektor"] }
+    """
+    if not username:
+        return False
+    if is_admin_user(username):
+        return True
+    groups_cfg = AUTH_CONFIG.get("groups") or {}
+    members = groups_cfg.get(group_name) or []
+    return username in members
+
+
+def user_groups(username: Optional[str]) -> list:
+    """Melyik csoportoknak tagja az adott user. Admin nem kap külön jelölést
+    (a `is_admin` mező mutatja azt); a groups csak az explicit tagságokat listázza."""
+    if not username:
+        return []
+    groups_cfg = AUTH_CONFIG.get("groups") or {}
+    return sorted(g for g, members in groups_cfg.items() if username in (members or []))
+
+
 # ─── Session-based helpers (FastAPI request-tel) ─────────────────────────
 def current_username(request: Request) -> Optional[str]:
     return request.session.get("username")
@@ -232,6 +258,14 @@ def require_admin(request: Request) -> str:
     name = require_auth(request)
     if not is_admin_user(name):
         raise HTTPException(status_code=403, detail="Nincs admin jog")
+    return name
+
+
+def require_import(request: Request) -> str:
+    """Admin VAGY 'import' csoport tagja. 401/403 különben."""
+    name = require_auth(request)
+    if not is_in_group(name, "import"):
+        raise HTTPException(status_code=403, detail="Nincs import jog")
     return name
 
 
@@ -281,4 +315,5 @@ def session_info(request: Request) -> Dict[str, Any]:
         "username":      name,
         "display_name":  user.get("display_name") or name,
         "is_admin":      bool(user.get("is_admin", False)),
+        "groups":        user_groups(name),
     }

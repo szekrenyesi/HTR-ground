@@ -30,9 +30,12 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .auth import (
     AUTH_CONFIG,
+    is_admin_user,
     is_authenticated,
+    require_admin,
     require_auth,
     require_auth_or_redirect,
+    require_import,
     session_info,
     verify_credentials,
 )
@@ -58,6 +61,7 @@ from .projects import (
 from . import meta as pair_meta
 from . import presence as presence_mod
 from . import batch_export
+from . import importer
 from .schema import Page
 
 
@@ -744,3 +748,133 @@ def api_project_export(
         headers["Access-Control-Expose-Headers"] = "Content-Disposition"
 
     return _Resp(content=zip_bytes, media_type="application/zip", headers=headers)
+
+
+# ─── Import (mappa létrehozás + fájl feltöltés) ─────────────────────────
+def _require_import_and_acl(user: str, target_path: str):
+    """Admin vagy import-tag jog + ACL a targetre (kivéve admin, aki bypass-ol)."""
+    from .projects import _user_can_see
+    # A require_import already ellenőrizte hogy import-jog van
+    if not is_admin_user(user):
+        if not _user_can_see(target_path, user):
+            raise HTTPException(status_code=403, detail=f"Nincs jogosultság: {target_path!r}")
+
+
+@app.post("/api/project-folder")
+async def api_project_folder_create(
+    request: Request,
+    user: str = Depends(require_import),
+):
+    """Új mappa létrehozás.
+
+    Body:  { "path": "Bakonykuti/1951" }
+    Auth:  admin vagy 'import' csoport tag; nem-adminra érvényesül az ACL.
+    """
+    body = await request.json()
+    path = (body.get("path") or "").strip("/")
+    if not path:
+        raise HTTPException(status_code=400, detail="Hiányzó `path` mező.")
+
+    # ACL: az új mappa a HELYES prefix alá kell essen. A parent path a láthatóság alapja.
+    parent_path = "/".join(path.split("/")[:-1])
+    _require_import_and_acl(user, parent_path)
+
+    try:
+        target = importer.create_folder(path)
+    except PathEscapeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except importer.ImportError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Mappa létrehozási hiba: {e}")
+    return {"path": path, "created": True}
+
+
+@app.post("/api/project-upload")
+async def api_project_upload(
+    path: str = "",
+    files: list[UploadFile] = File(...),
+    manifest: str = Form(...),
+    user: str = Depends(require_import),
+):
+    """Fájlok feltöltése egy mappába (opcionálisan almappákkal).
+
+    Multipart form:
+      - `files`:    egy vagy több fájl blob
+      - `manifest`: JSON stringben a relatív path-ok listája (fájlonként egy),
+                    a `path` query param-hez viszonyítva
+                    Pl.: `["oldal_001.jpg", "oldal_001.json", "sub/x.png"]`
+
+    Query:
+      - `path`: cél mappa (üres = projects/ gyökér)
+
+    Auth: admin vagy 'import' csoport tag; ACL a target-re (kivéve admin).
+    """
+    _require_import_and_acl(user, path.strip("/"))
+
+    try:
+        rel_paths = _json.loads(manifest)
+    except _json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"Hibás manifest JSON: {e}")
+    if not isinstance(rel_paths, list):
+        raise HTTPException(status_code=400, detail="A manifest listának kell lennie.")
+    if len(rel_paths) != len(files):
+        raise HTTPException(
+            status_code=400,
+            detail=f"files ({len(files)}) és manifest ({len(rel_paths)}) mérete nem egyezik.",
+        )
+
+    # Olvasd be a fájl-tartalmakat
+    pairs: list = []
+    for f, rel in zip(files, rel_paths):
+        if not isinstance(rel, str):
+            raise HTTPException(status_code=400, detail=f"manifest elem nem string: {rel!r}")
+        content = await f.read()
+        pairs.append((rel, content))
+
+    try:
+        result = importer.upload_files(path.strip("/"), pairs)
+    except PathEscapeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except importer.ImportError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Feltöltési hiba: {e}")
+
+    return result
+
+
+# ─── Törlés — csak admin ────────────────────────────────────────────────
+@app.delete("/api/project-folder")
+def api_project_folder_delete(
+    path: str,
+    user: str = Depends(require_admin),
+):
+    """Egy mappa rekurzív törlése. Csak admin."""
+    try:
+        return importer.delete_folder(path.strip("/"))
+    except PathEscapeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except importer.ImportError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except (FileNotFoundError, NotADirectoryError) as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Törlési hiba: {e}")
+
+
+@app.delete("/api/project-file")
+def api_project_file_delete(
+    path: str,
+    basename: str,
+    user: str = Depends(require_admin),
+):
+    """Egy pár (kép + összes annotáció + sidecar) törlése. Csak admin."""
+    try:
+        return importer.delete_pair(path.strip("/"), basename)
+    except PathEscapeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except (FileNotFoundError, NotADirectoryError) as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Törlési hiba: {e}")

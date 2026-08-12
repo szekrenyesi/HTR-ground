@@ -21,7 +21,17 @@
   <div class="container">
     <div class="breadcrumb-row">
       <nav class="breadcrumb-wrap" id="breadcrumb" aria-label="Navigáció"></nav>
-      <button type="button" class="export-btn" id="export-btn" title="Ez a mappa exportálása ZIP-be" hidden>Export ↓</button>
+      <div class="header-actions">
+        <div class="dropdown-wrap" id="new-menu-wrap" hidden>
+          <button type="button" class="header-action-btn" id="new-menu-btn" title="Új mappa vagy fájl feltöltése">+ Új ↓</button>
+          <div class="dropdown-menu" id="new-menu">
+            <button type="button" data-new="folder">+ Új mappa…</button>
+            <button type="button" data-new="files">⬆ Fájlok feltöltése…</button>
+            <button type="button" data-new="dir">⬆ Mappa feltöltése…</button>
+          </div>
+        </div>
+        <button type="button" class="header-action-btn" id="export-btn" title="Ez a mappa exportálása ZIP-be" hidden>Export ↓</button>
+      </div>
     </div>
 
     <div class="stats-bar" id="stats-bar" hidden></div>
@@ -93,6 +103,71 @@
 
 <!-- Toast a warning-hoz -->
 <div class="export-toast" id="export-toast" hidden></div>
+
+<!-- Új mappa modal -->
+<div class="export-modal-backdrop" id="newfolder-backdrop" hidden>
+  <div class="export-modal" role="dialog" aria-labelledby="newfolder-title" aria-modal="true">
+    <div class="export-header">
+      <h2 id="newfolder-title">Új mappa</h2>
+      <button type="button" class="export-close" data-close="newfolder">×</button>
+    </div>
+    <div class="export-body">
+      <p class="export-target" id="newfolder-parent"></p>
+      <label class="export-hint" for="newfolder-name">A létrehozandó mappa neve (almappa is lehet, „/"-cel)</label>
+      <input type="text" id="newfolder-name" class="text-input" placeholder="pl. 1951 vagy alma/korte" autofocus>
+    </div>
+    <div class="export-footer">
+      <button type="button" class="export-cancel" data-close="newfolder">Mégse</button>
+      <button type="button" class="export-submit" id="newfolder-submit" disabled>Létrehozás</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fájl upload modal (mindkét mód: fájlok / mappa) -->
+<div class="export-modal-backdrop" id="upload-backdrop" hidden>
+  <div class="export-modal" role="dialog" aria-labelledby="upload-title" aria-modal="true">
+    <div class="export-header">
+      <h2 id="upload-title">Fájlok feltöltése</h2>
+      <button type="button" class="export-close" data-close="upload">×</button>
+    </div>
+    <div class="export-body">
+      <p class="export-target" id="upload-target"></p>
+      <p class="export-hint" id="upload-hint">Válaszd ki a fájlokat vagy a mappát a gombbal.</p>
+
+      <input type="file" id="upload-files-input" multiple hidden
+             accept=".jpg,.jpeg,.png,.tif,.tiff,.gif,.xml,.json">
+      <input type="file" id="upload-dir-input" webkitdirectory multiple hidden>
+
+      <button type="button" class="pick-btn" id="upload-pick-btn">Fájlok kiválasztása</button>
+
+      <div class="upload-file-list" id="upload-file-list"></div>
+      <p class="upload-summary" id="upload-summary"></p>
+    </div>
+    <div class="export-footer">
+      <button type="button" class="export-cancel" data-close="upload">Mégse</button>
+      <button type="button" class="export-submit" id="upload-submit" disabled>Feltöltés</button>
+    </div>
+  </div>
+</div>
+
+<!-- Törlés konfirmáció -->
+<div class="export-modal-backdrop" id="delete-backdrop" hidden>
+  <div class="export-modal" role="dialog" aria-labelledby="delete-title" aria-modal="true">
+    <div class="export-header">
+      <h2 id="delete-title">Törlés</h2>
+      <button type="button" class="export-close" data-close="delete">×</button>
+    </div>
+    <div class="export-body">
+      <p class="delete-message" id="delete-message"></p>
+      <p class="delete-details" id="delete-details"></p>
+      <p class="delete-warn">Ez a művelet nem visszavonható.</p>
+    </div>
+    <div class="export-footer">
+      <button type="button" class="export-cancel" data-close="delete">Mégse</button>
+      <button type="button" class="delete-submit" id="delete-submit">Törlés</button>
+    </div>
+  </div>
+</div>
 
 <footer class="site-footer">
   © 2026 Szekrényes István

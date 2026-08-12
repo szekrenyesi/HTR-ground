@@ -43,9 +43,24 @@ function esc(s) {
   })[c]);
 }
 
-// Login state widget
-function setupLoginStatus() {
-  fetch(api('/api/session')).then(r => r.json()).then(info => {
+// Session info cache — a jogosultsághoz szükséges (import gomb / delete gomb)
+let sessionInfo = { authenticated: false };
+
+// A legutóbbi folder-listázás cache-e — a törlés-modal olvassa a stats-hoz
+let lastFolderData = null;
+
+function canImport() {
+  return sessionInfo.is_admin || (sessionInfo.groups || []).includes('import');
+}
+function isAdmin() {
+  return !!sessionInfo.is_admin;
+}
+
+// Login state widget + session info feltöltése
+async function setupLoginStatus() {
+  try {
+    const info = await fetch(api('/api/session')).then(r => r.json());
+    sessionInfo = info;
     if (info.authenticated) {
       const name = info.display_name || info.username;
       const adminTag = info.is_admin ? ' <span title="admin" style="color:#f0d060;">★</span>' : '';
@@ -58,7 +73,9 @@ function setupLoginStatus() {
     } else {
       loginStatus.innerHTML = `<a href="${ROOT_PATH}/login" class="btn-link-plain">Belépés</a>`;
     }
-  }).catch(() => {});
+    // A „+ Új" dropdown csak import-jogúaknak látszik
+    document.getElementById('new-menu-wrap').hidden = !canImport();
+  } catch (_) {}
 }
 
 function renderBreadcrumb(crumbs) {
@@ -73,6 +90,7 @@ function renderBreadcrumb(crumbs) {
 
 function renderSubfolders(subfolders) {
   if (!subfolders.length) return '';
+  const admin = isAdmin();
   const items = subfolders.map(f => `
     <a class="item" href="${ROOT_PATH}/projects/${esc(f.path)}" data-navigate="${esc(f.path)}">
       <span class="icon">📁</span>
@@ -83,6 +101,7 @@ function renderSubfolders(subfolders) {
       <button type="button" class="folder-export-btn"
               data-export-path="${esc(f.path)}"
               title="Ez az almappa exportálása ZIP-be">Export ↓</button>
+      ${admin ? `<button type="button" class="row-delete-btn" data-delete-kind="folder" data-delete-path="${esc(f.path)}" data-delete-name="${esc(f.name)}" title="Mappa törlése">×</button>` : ''}
       <span class="modified">${fmtDate(f.modified)}</span>
     </a>
   `).join('');
@@ -174,6 +193,7 @@ function renderPairs(pairs, folderPath) {
     // Editor megnyitása a szerver-fájllal — a státusz badge NEM redirectel
     const q = new URLSearchParams({ path: folderPath || '', basename: pair.basename });
     const href = `${ROOT_PATH}/projects/edit?${q}`;
+    const admin = isAdmin();
     return `
       <div class="item" data-href="${href}">
         <span class="icon">${icon}</span>
@@ -184,6 +204,7 @@ function renderPairs(pairs, folderPath) {
           ${renderPresenceLine(pair)}
         </div>
         <div class="status-wrap">${renderStatusBadge(pair, folderPath)}</div>
+        ${admin ? `<button type="button" class="row-delete-btn" data-delete-kind="pair" data-delete-path="${esc(folderPath || '')}" data-delete-name="${esc(pair.basename)}" title="Pár törlése">×</button>` : ''}
         <span class="modified">${fmtDate(pair.modified)}</span>
       </div>
     `;
@@ -243,7 +264,7 @@ async function updateStatus(path, basename, newStatus) {
   }
 }
 
-// Kliens-oldali event delegáció: badge / almappa-export / sor kattintás
+// Kliens-oldali event delegáció: badge / almappa-export / delete / sor kattintás
 document.addEventListener('click', ev => {
   const badge = ev.target.closest('.status-badge');
   if (badge) {
@@ -260,6 +281,14 @@ document.addEventListener('click', ev => {
     openExportModal(folderExport.dataset.exportPath);
     return;
   }
+  // Sor-szintű törlés (admin)
+  const rowDelete = ev.target.closest('.row-delete-btn');
+  if (rowDelete) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    openDeleteModal(rowDelete.dataset.deleteKind, rowDelete.dataset.deletePath, rowDelete.dataset.deleteName);
+    return;
+  }
   const item = ev.target.closest('.item[data-href]');
   if (item && !ev.target.closest('.status-menu')) {
     window.location.href = item.dataset.href;
@@ -267,6 +296,7 @@ document.addEventListener('click', ev => {
   }
   // Bárhova máshova kattintva a menük becsukódnak
   if (!ev.target.closest('.status-menu')) closeAllStatusMenus();
+  if (!ev.target.closest('#new-menu-wrap')) closeNewMenu();
 });
 document.addEventListener('keydown', ev => {
   if (ev.key === 'Escape') closeAllStatusMenus();
@@ -296,6 +326,7 @@ async function loadFolder(path) {
       throw new Error(msg);
     }
     const body = await res.json();
+    lastFolderData = body;  // a törlés-modal (per-subfolder stats) használja
     renderBreadcrumb(body.breadcrumb);
     renderStats(body.stats, !body.path);  // atRoot = üres path → nincs fejléc stats
     const html = renderSubfolders(body.subfolders) + renderPairs(body.pairs, body.path);
@@ -487,9 +518,266 @@ function showToast(kind, message, warnings) {
   }
 }
 
-setupLoginStatus();
+// ─── „+ Új" dropdown menu ─────────────────────────────────────
+const newMenuBtn  = document.getElementById('new-menu-btn');
+const newMenu     = document.getElementById('new-menu');
+function closeNewMenu()  { newMenu.classList.remove('open'); }
+function toggleNewMenu() { newMenu.classList.toggle('open'); }
+newMenuBtn.addEventListener('click', ev => { ev.stopPropagation(); toggleNewMenu(); });
+newMenu.addEventListener('click', ev => {
+  const btn = ev.target.closest('button[data-new]');
+  if (!btn) return;
+  closeNewMenu();
+  const kind = btn.dataset.new;
+  if (kind === 'folder') openNewFolderModal();
+  else if (kind === 'files') openUploadModal('files');
+  else if (kind === 'dir')   openUploadModal('dir');
+});
+
+// ─── Új mappa modal ────────────────────────────────────────────
+const nfBackdrop = document.getElementById('newfolder-backdrop');
+const nfParent   = document.getElementById('newfolder-parent');
+const nfName     = document.getElementById('newfolder-name');
+const nfSubmit   = document.getElementById('newfolder-submit');
+
+function openNewFolderModal() {
+  const p = currentPath();
+  nfParent.textContent = p ? `/${p} alá` : '/projects gyökér alá';
+  nfName.value = '';
+  nfSubmit.disabled = true;
+  nfBackdrop.hidden = false;
+  setTimeout(() => nfName.focus(), 50);
+}
+nfName.addEventListener('input', () => {
+  nfSubmit.disabled = nfName.value.trim().length === 0;
+});
+nfName.addEventListener('keydown', ev => {
+  if (ev.key === 'Enter' && !nfSubmit.disabled) nfSubmit.click();
+});
+nfSubmit.addEventListener('click', async () => {
+  const name = nfName.value.trim().replace(/^\/+|\/+$/g, '');
+  if (!name) return;
+  const parent = currentPath();
+  const path   = parent ? `${parent}/${name}` : name;
+  nfSubmit.disabled = true;
+  try {
+    const res = await fetch(api('/api/project-folder'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); if (j.detail) msg = j.detail; } catch(_) {}
+      throw new Error(msg);
+    }
+    closeModal('newfolder');
+    showToast('ok', `Mappa létrehozva: ${path}`);
+    await loadFolder(currentPath());
+  } catch (err) {
+    showToast('err', `Létrehozási hiba: ${err.message}`);
+    nfSubmit.disabled = false;
+  }
+});
+
+// ─── Upload modal (fájlok VAGY mappa) ─────────────────────────
+const upBackdrop  = document.getElementById('upload-backdrop');
+const upTitle     = document.getElementById('upload-title');
+const upHint      = document.getElementById('upload-hint');
+const upTarget    = document.getElementById('upload-target');
+const upFileList  = document.getElementById('upload-file-list');
+const upSummary   = document.getElementById('upload-summary');
+const upSubmit    = document.getElementById('upload-submit');
+const upPickBtn   = document.getElementById('upload-pick-btn');
+const upFilesIn   = document.getElementById('upload-files-input');
+const upDirIn     = document.getElementById('upload-dir-input');
+
+let uploadSelectedFiles = [];  // [{file, relPath, allowed}]
+
+const ALLOWED_EXTS = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.gif', '.xml', '.json'];
+function hasAllowedExt(name) {
+  const n = name.toLowerCase();
+  return ALLOWED_EXTS.some(e => n.endsWith(e));
+}
+
+function openUploadModal(mode) {
+  const p = currentPath();
+  upTarget.textContent = p ? `/${p} alá` : '/projects gyökér alá';
+  uploadSelectedFiles = [];
+  upFileList.innerHTML = '';
+  upSummary.textContent = '';
+  upSubmit.disabled = true;
+  upBackdrop.hidden = false;
+
+  if (mode === 'files') {
+    upTitle.textContent = 'Fájlok feltöltése';
+    upHint.textContent  = 'Válaszd ki a fájlokat. Elfogadott: .jpg .jpeg .png .tif .tiff .gif .xml .json';
+    upPickBtn.textContent = 'Fájlok kiválasztása';
+    upPickBtn.onclick = () => upFilesIn.click();
+  } else {
+    upTitle.textContent = 'Mappa feltöltése';
+    upHint.textContent  = 'Válassz ki egy mappát — az almappa-struktúra megmarad. Csak megengedett kiterjesztésű fájlok kerülnek fel.';
+    upPickBtn.textContent = 'Mappa kiválasztása';
+    upPickBtn.onclick = () => upDirIn.click();
+  }
+}
+
+upFilesIn.addEventListener('change', ev => handlePicked(Array.from(ev.target.files), false));
+upDirIn.addEventListener('change',   ev => handlePicked(Array.from(ev.target.files), true));
+
+function handlePicked(fileList, isDir) {
+  uploadSelectedFiles = fileList.map(f => {
+    const rel = isDir ? (f.webkitRelativePath || f.name) : f.name;
+    return { file: f, relPath: rel, allowed: hasAllowedExt(f.name) && !rel.split('/').some(p => p.startsWith('.')) };
+  });
+  // Render a listába
+  const rows = uploadSelectedFiles.map(x => `
+    <div class="file-row ${x.allowed ? '' : 'rejected'}">
+      <span>${esc(x.relPath)}</span>
+      <span class="size">${fmtSize(x.file.size)}${x.allowed ? '' : ' — kiterjesztés/rejtett'}</span>
+    </div>
+  `).join('');
+  upFileList.innerHTML = rows;
+  const ok = uploadSelectedFiles.filter(x => x.allowed).length;
+  const bad = uploadSelectedFiles.length - ok;
+  upSummary.innerHTML = `${ok} feltöltendő${bad > 0 ? ` · <span class="warn">${bad} kihagyva</span>` : ''}`;
+  upSubmit.disabled = ok === 0;
+}
+
+upSubmit.addEventListener('click', async () => {
+  const goodFiles = uploadSelectedFiles.filter(x => x.allowed);
+  if (goodFiles.length === 0) return;
+  upSubmit.disabled = true;
+  const prev = upSubmit.textContent;
+  upSubmit.textContent = 'Feltöltés…';
+  try {
+    const form = new FormData();
+    const manifest = goodFiles.map(x => x.relPath);
+    form.append('manifest', JSON.stringify(manifest));
+    goodFiles.forEach(x => form.append('files', x.file, x.file.name));
+
+    const q = new URLSearchParams({ path: currentPath() });
+    const res = await fetch(api(`/api/project-upload?${q}`), { method: 'POST', body: form });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); if (j.detail) msg = j.detail; } catch(_) {}
+      throw new Error(msg);
+    }
+    const body = await res.json();
+    closeModal('upload');
+    const upCount = body.uploaded.length;
+    const skCount = body.skipped.length;
+    if (skCount === 0) {
+      showToast('ok', `${upCount} fájl feltöltve.`);
+    } else {
+      showToast('warn', `${upCount} feltöltve, ${skCount} kihagyva.`, {
+        skipped: body.skipped.map(s => `${s.path} — ${s.reason}`),
+      });
+    }
+    await loadFolder(currentPath());
+  } catch (err) {
+    showToast('err', `Feltöltési hiba: ${err.message}`);
+    upSubmit.disabled = false;
+    upSubmit.textContent = prev;
+  }
+});
+
+// ─── Törlés konfirmáció ───────────────────────────────────────
+const delBackdrop = document.getElementById('delete-backdrop');
+const delMessage  = document.getElementById('delete-message');
+const delDetails  = document.getElementById('delete-details');
+const delSubmit   = document.getElementById('delete-submit');
+
+let deleteContext = null;  // { kind: 'folder'|'pair', path, name, basename }
+
+function openDeleteModal(kind, path, name) {
+  if (kind === 'folder') {
+    // A mappa tartalmát a jelenlegi listázásból tudjuk kikövetkeztetni,
+    // egyszerűbb egy külön query-vel: kérjük le a stats-ot
+    deleteContext = { kind: 'folder', path, name };
+    delMessage.innerHTML = `Törölni szeretnéd a <code>${esc(path)}</code> mappát <strong>rekurzívan</strong>?`;
+    delDetails.textContent = 'Betöltés…';
+    // A mappa aggregátumát külön API-hívás nélkül nem tudjuk; a stats-ot a listánk tartalmazza. Egyszerűsítés:
+    // az aktuális folder-listázásból megpróbáljuk kiszedni ezt az almappát.
+    const info = findSubfolderInCurrent(path);
+    if (info && info.stats) {
+      const total = info.stats.total || 0;
+      const parts = Object.entries(info.stats.counts || {}).map(([s, n]) => `${n} ${s}`);
+      delDetails.textContent = total > 0
+        ? `${total} pár (${parts.join(', ')}) + almappák`
+        : 'Üres mappa vagy csak almappák.';
+    } else {
+      delDetails.textContent = 'Tartalmi információ nem elérhető — a mappa és összes tartalma törlődik.';
+    }
+  } else {
+    deleteContext = { kind: 'pair', path, basename: name };
+    delMessage.innerHTML = `Törölni szeretnéd a <code>${esc(name)}</code> pár összes fájlját?`;
+    delDetails.textContent = 'Kép + összes annotáció + státusz sidecar mind törlődik.';
+  }
+  delBackdrop.hidden = false;
+}
+
+function findSubfolderInCurrent(path) {
+  // A DOM-ból nem tudjuk kinyerni könnyen a stats-ot; a legutóbb kapott folderData-t tároljuk.
+  if (!lastFolderData || !lastFolderData.subfolders) return null;
+  return lastFolderData.subfolders.find(f => f.path === path) || null;
+}
+
+delSubmit.addEventListener('click', async () => {
+  if (!deleteContext) return;
+  const c = deleteContext;
+  delSubmit.disabled = true;
+  const prev = delSubmit.textContent;
+  delSubmit.textContent = 'Törlés…';
+  try {
+    let res;
+    if (c.kind === 'folder') {
+      const q = new URLSearchParams({ path: c.path });
+      res = await fetch(api(`/api/project-folder?${q}`), { method: 'DELETE' });
+    } else {
+      const q = new URLSearchParams({ path: c.path, basename: c.basename });
+      res = await fetch(api(`/api/project-file?${q}`), { method: 'DELETE' });
+    }
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); if (j.detail) msg = j.detail; } catch(_) {}
+      throw new Error(msg);
+    }
+    closeModal('delete');
+    showToast('ok', c.kind === 'folder'
+      ? `Mappa törölve: ${c.path}`
+      : `Pár törölve: ${c.basename}`);
+    await loadFolder(currentPath());
+  } catch (err) {
+    showToast('err', `Törlési hiba: ${err.message}`);
+  } finally {
+    delSubmit.disabled = false;
+    delSubmit.textContent = prev;
+    deleteContext = null;
+  }
+});
+
+// ─── Közös modal-close (× / Mégse / backdrop / Escape) ─────────
+function closeModal(which) {
+  document.getElementById(`${which}-backdrop`).hidden = true;
+}
+document.addEventListener('click', ev => {
+  const close = ev.target.closest('[data-close]');
+  if (close) closeModal(close.dataset.close);
+  // Backdrop kattintás
+  const backdrop = ev.target.classList?.contains('export-modal-backdrop') ? ev.target : null;
+  if (backdrop && !backdrop.hidden) backdrop.hidden = true;
+});
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape') {
+    ['newfolder', 'upload', 'delete'].forEach(w => closeModal(w));
+    closeNewMenu();
+  }
+});
+
+// ─── Indítás ───────────────────────────────────────────────────
+setupLoginStatus().then(() => loadFolder(currentPath()));
 ensureStatusValues();
-loadFolder(currentPath());
 
 // A projektek listáját 20 mp-enként frissítsük — így a presence "élőnek" tűnik.
 // Csak akkor futtatjuk, ha a tab aktív (nem pazaroljuk a hálózatot háttérben).
