@@ -1,6 +1,7 @@
 {
     "session_cookie_name": "htrground_session",
     "session_max_age_seconds": 604800,
+    "default_theme": "light",
     "users": {},
     "projects": {}
 }
