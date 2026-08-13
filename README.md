@@ -43,7 +43,9 @@ HTR-ground/
 │   ├── editor.js                # editor logic: load, zoom, filters, save
 │   ├── projects.html            # Projects file browser skeleton, Bootstrap
 │   ├── projects.css             # Projects dark-theme styles on top of Bootstrap
-│   └── projects.js              # folder navigation, breadcrumb, listing
+│   ├── projects.js              # folder navigation, breadcrumb, listing
+│   ├── theme.css                # dark/light CSS variables, shared by all pages
+│   └── theme.js                 # theme toggle logic + localStorage persistence
 │
 ├── backend/
 │   ├── conf/
@@ -61,6 +63,9 @@ HTR-ground/
 │       ├── batch_export.py      # ZIP export: multi-format, auto-convert from freshest
 │       ├── importer.py          # create folder, upload files, delete (admin)
 │       ├── schema.py            # Page / Region / Line Pydantic models
+│       │
+│   frontend also ships theme.css + theme.js — dark/light theme with per-user
+│   localStorage + config-level default_theme in auth.json
 │       └── converters/
 │           ├── __init__.py      # detect_format + convert + export dispatch
 │           ├── alto.py, page.py, htr_json.py       # import
@@ -579,6 +584,36 @@ project mode. Project mode:
 
 The Bootstrap-based pages (landing, login, projects) share a minimal dark
 theme layered on Bootstrap 5.3 from CDN.
+
+### Theming (dark / light)
+
+Every page includes `theme.css` (CSS custom-properties for colours) and
+`theme.js` (small toggle script). A **Világos** / **Sötét** button in each
+page's header switches between the two themes; the choice is stored in
+`localStorage` so it persists across visits and pages.
+
+Theme resolution order:
+
+1. `localStorage['htrground-theme']` — the user's own manual pick
+2. `<meta name="default-theme">` — server-side default from
+   `auth.json.default_theme` (`"dark"` or `"light"`)
+3. Fallback: `"dark"`
+
+To ship the app with light as the default (users can still switch), edit
+`backend/conf/auth.json`:
+
+```json
+{
+  "default_theme": "light",
+  "session_secret": "…",
+  "users": { … }
+}
+```
+
+All colours in the frontend CSS use semantic variables like
+`var(--bg-page)` and `var(--accent-success)`, so adding an additional
+palette later is a matter of another `:root[data-theme="…"]` block in
+`theme.css`.
 
 ---
 

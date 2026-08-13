@@ -551,7 +551,10 @@ function updateDetailView() {
   const offsetY = Math.round((canvasH - drawH) / 2);
 
   const ctx = detailCanvas.getContext('2d');
-  ctx.fillStyle = '#0a0b10';
+  // A canvas háttere témafüggő — a --bg-canvas változóból veszed
+  const canvasBg = getComputedStyle(document.documentElement)
+    .getPropertyValue('--bg-canvas').trim() || '#0a0b10';
+  ctx.fillStyle = canvasBg;
   ctx.fillRect(0, 0, canvasW, canvasH);
 
   // 1. Kontextus: sötétítés + BW (kontraszt nélkül)

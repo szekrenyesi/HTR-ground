@@ -1,0 +1,167 @@
+/*
+  HTR-ground közös téma-változók.
+
+  Dark az alapértelmezett; a light-ot a `:root[data-theme="light"]` selector
+  aktiválja. A théma-választás a `theme.js`-ben van kezelve (localStorage +
+  szerver-oldali `default_theme` config).
+
+  A változók nevei szemantikusak (--bg-page, --accent-success stb.), nem
+  konkrét színek. Így egyszerű váltani később, ha újabb palette kell.
+*/
+
+:root {
+  /* ─── Háttér ───────────────────────────────────────────────── */
+  --bg-page:         #13141a;
+  --bg-nav:          #1c1d26;
+  --bg-panel:        #1c1d26;
+  --bg-panel-alt:    #16171f;
+  --bg-input:        #25263a;
+  --bg-hover:        #2e304a;
+  --bg-image-panel:  #0d0e14;
+  --bg-canvas:       #0a0b10;
+  --bg-code:         #13141a;
+  --bg-backdrop:     rgba(0, 0, 0, 0.65);
+
+  /* ─── Szegélyek ───────────────────────────────────────────── */
+  --border-subtle:   #2a2b3a;
+  --border-medium:   #35364a;
+  --border-strong:   #4a4c6a;
+  --border-line:     #25263a;
+  --border-faint:    #333;
+
+  /* ─── Szöveg ──────────────────────────────────────────────── */
+  --text-primary:    #d8d8e0;
+  --text-content:    #c8c8d8;
+  --text-secondary:  #b0b0c8;
+  --text-muted:      #888;
+  --text-dim:        #666;
+  --text-faint:      #555;
+  --text-very-faint: #444;
+  --text-ultra-faint: #333;
+
+  /* ─── Accent: brand ───────────────────────────────────────── */
+  --accent-brand-hover: #f0d060;
+
+  /* ─── Accent: success (zöld) ──────────────────────────────── */
+  --accent-success:           #7dcc9a;
+  --accent-success-hover:     #a5d9ba;
+  --accent-success-bg:        #2a5a3a;
+  --accent-success-bg-hover:  #336a46;
+  --accent-success-badge-bg:      rgba(125, 204, 154, 0.14);
+  --accent-success-badge-border:  rgba(125, 204, 154, 0.4);
+  --accent-success-pulse:     rgba(125, 204, 154, 0.55);
+
+  /* ─── Accent: warning (sárga) ─────────────────────────────── */
+  --accent-warning:         #f0d060;
+  --accent-warning-alt:     #e8b84b;
+  --accent-warning-badge-bg:     rgba(240, 208, 96, 0.15);
+  --accent-warning-badge-border: rgba(240, 208, 96, 0.4);
+  --accent-warning-highlight:    rgba(255, 200, 50, 0.18);
+
+  /* ─── Accent: error (piros) ───────────────────────────────── */
+  --accent-error:                 #e88484;
+  --accent-error-hover:           #f0a0a0;
+  --accent-error-bg:              rgba(232, 100, 100, 0.12);
+  --accent-error-border:          rgba(232, 100, 100, 0.3);
+  --accent-error-danger-bg:       #6a2a2a;
+  --accent-error-danger-bg-hover: #7a3535;
+  --accent-region-overlay:        rgba(255, 90, 90, 0.25);
+
+  /* ─── Accent: info (kék) ──────────────────────────────────── */
+  --accent-info:            #7a8ec4;
+  --accent-line-overlay:    rgba(80, 180, 255, 0.35);
+  --accent-line-overlay-hover: rgba(80, 180, 255, 0.75);
+  --accent-line-overlay-fill:  rgba(80, 180, 255, 0.12);
+
+  /* ─── Accent: review (narancs) ────────────────────────────── */
+  --accent-review:           #e8a484;
+  --accent-review-badge-bg:  rgba(232, 132, 132, 0.13);
+  --accent-review-badge-border: rgba(232, 132, 132, 0.4);
+}
+
+/* ─── LIGHT THEMA ─────────────────────────────────────────────
+   A háttereket világosakra váltjuk, az accent-eket sötétebb árnyalatokra
+   (hogy a fehér háttéren is olvashatók legyenek).
+   ────────────────────────────────────────────────────────────── */
+:root[data-theme="light"] {
+  --bg-page:         #f4f5f8;
+  --bg-nav:          #ffffff;
+  --bg-panel:        #ffffff;
+  --bg-panel-alt:    #ebedf1;
+  --bg-input:        #f0f1f5;
+  --bg-hover:        #e4e6ec;
+  --bg-image-panel:  #ffffff;
+  --bg-canvas:       #f0f1f5;
+  --bg-code:         #f0f1f5;
+  --bg-backdrop:     rgba(0, 0, 0, 0.35);
+
+  --border-subtle:   #d4d6dc;
+  --border-medium:   #b8bac2;
+  --border-strong:   #8a8d98;
+  --border-line:     #d4d6dc;
+  --border-faint:    #cccccc;
+
+  --text-primary:    #1a1c22;
+  --text-content:    #2a2c34;
+  --text-secondary:  #40424a;
+  --text-muted:      #666666;
+  --text-dim:        #808080;
+  --text-faint:      #9a9a9a;
+  --text-very-faint: #b0b0b0;
+  --text-ultra-faint: #c0c0c0;
+
+  --accent-brand-hover: #8a6a10;
+
+  --accent-success:           #1f7048;
+  --accent-success-hover:     #145030;
+  --accent-success-bg:        #d0e8db;
+  --accent-success-bg-hover:  #b8ddc8;
+  --accent-success-badge-bg:      rgba(31, 112, 72, 0.12);
+  --accent-success-badge-border:  rgba(31, 112, 72, 0.35);
+  --accent-success-pulse:     rgba(31, 112, 72, 0.55);
+
+  --accent-warning:         #8a6a10;
+  --accent-warning-alt:     #a08018;
+  --accent-warning-badge-bg:     rgba(138, 106, 16, 0.14);
+  --accent-warning-badge-border: rgba(138, 106, 16, 0.45);
+  --accent-warning-highlight:    rgba(255, 200, 50, 0.35);
+
+  --accent-error:                 #b83030;
+  --accent-error-hover:           #8a2020;
+  --accent-error-bg:              rgba(184, 48, 48, 0.10);
+  --accent-error-border:          rgba(184, 48, 48, 0.35);
+  --accent-error-danger-bg:       #b83030;
+  --accent-error-danger-bg-hover: #8a2020;
+  --accent-region-overlay:        rgba(200, 40, 40, 0.30);
+
+  --accent-info:            #3050a0;
+  --accent-line-overlay:    rgba(30, 100, 200, 0.40);
+  --accent-line-overlay-hover: rgba(30, 100, 200, 0.75);
+  --accent-line-overlay-fill:  rgba(30, 100, 200, 0.10);
+
+  --accent-review:           #a05020;
+  --accent-review-badge-bg:  rgba(160, 80, 32, 0.12);
+  --accent-review-badge-border: rgba(160, 80, 32, 0.40);
+}
+
+/* Alap body — hogy a szín-váltás azonnal érvényesüljön mindenhol */
+html { background: var(--bg-page); color: var(--text-primary); }
+body { background: var(--bg-page); color: var(--text-primary); }
+
+/* ─── Theme toggle gomb (közös stílus) ────────────────────── */
+.theme-toggle {
+  background: transparent;
+  border: 1px solid var(--border-medium);
+  color: var(--text-secondary);
+  padding: 3px 9px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.theme-toggle:hover {
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}

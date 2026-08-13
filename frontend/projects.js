@@ -63,8 +63,8 @@ async function setupLoginStatus() {
     sessionInfo = info;
     if (info.authenticated) {
       const name = info.display_name || info.username;
-      const adminTag = info.is_admin ? ' <span title="admin" style="color:#f0d060;">★</span>' : '';
-      loginStatus.innerHTML = `Belépve mint <strong style="color:#d8d8e0;">${esc(name)}</strong>${adminTag} · <a href="#" class="btn-link-plain" id="logout-link">Kilépés</a>`;
+      const adminTag = info.is_admin ? ' <span title="admin" class="admin-star">★</span>' : '';
+      loginStatus.innerHTML = `Belépve mint <strong class="user-name">${esc(name)}</strong>${adminTag} · <a href="#" class="btn-link-plain" id="logout-link">Kilépés</a>`;
       document.getElementById('logout-link').addEventListener('click', async ev => {
         ev.preventDefault();
         await fetch(api('/logout'), { method: 'POST' });

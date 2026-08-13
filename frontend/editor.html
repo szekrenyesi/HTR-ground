@@ -3,18 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <title>HTR Editor</title>
+  <!-- A base tag ELSŐKÉNT — hogy a browser preload scanner-e is a HELYES
+       URL-t használja a CSS/JS betöltéséhez. A backend behelyettesíti a
+       {{ROOT_PATH}} placeholder-t (üres = root deployment, pl. "/htr-ground"
+       ha sub-path alatt fut). file:// módban a placeholder marad; egy alábbi
+       inline script akkor cseréli ki a fájl-relatív URL-re. -->
+  <base href="{{ROOT_PATH}}/">
   <script>
-    // HTTP(S) módban rögzítjük a base URL-t az alkalmazás gyökeréhez.
-    // A {{ROOT_PATH}} placeholder-t a backend behelyettesíti (üres, ha
-    // root deployment; pl. "/htr-ground", ha sub-path alatt fut).
-    // file:// módban nem állítjuk be — ott a relatív útvonalak a fájl
-    // mellől jönnek.
-    if (location.protocol !== 'file:') {
-      document.write('<base href="{{ROOT_PATH}}/">');
-    }
+    (function() {
+      // file:// mód: ha a placeholder literálisan maradt, cseréljük a base-t
+      // a jelenlegi fájl mappájára. (A CSS/JS előbetöltés így már rossz URL-t
+      // próbált — nyugodtan retry a link/script elemek újra-hozzáadásával.)
+      var b = document.querySelector('base');
+      if (!b) return;
+      if (b.href.indexOf('%7B%7BROOT_PATH%7D%7D') === -1
+          && b.href.indexOf('{'+'{ROOT_PATH}}') === -1) return;
+      // A placeholder itt maradt → file:// mód
+      b.href = location.href.replace(/[^/]*(\?.*)?$/, '');
+    })();
   </script>
   <meta name="root-path" content="{{ROOT_PATH}}">
+  <meta name="default-theme" content="{{DEFAULT_THEME}}">
+  <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="editor.css">
+  <script src="theme.js"></script>
 </head>
 <body>
 
@@ -57,6 +69,7 @@
   </div>
   <div id="project-info" style="display:none"></div>
   <div id="status">Nincs betöltve fájl</div>
+  <button type="button" class="theme-toggle" id="theme-toggle">Világos</button>
 </div>
 
 <div id="main">

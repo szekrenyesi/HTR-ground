@@ -129,19 +129,28 @@ if EXAMPLES_DIR.exists():
 # ─── Frontend asset helper ───────────────────────────────────────────────
 from fastapi.responses import HTMLResponse
 
-# HTML-be a `{{ROOT_PATH}}` placeholder-t behelyettesítjük a runtime prefix-re.
-# Így ugyanaz a frontend fájl kiszolgál root-mód (üres) és sub-path módban is.
+# HTML-be a placeholder-eket behelyettesítjük a runtime értékekre.
+# Így ugyanaz a frontend fájl kiszolgál root-mód (üres) és sub-path módban is,
+# valamint konfigolható a szerver-oldali téma-default.
 _HTML_TEMPLATE_MARKER = "{{ROOT_PATH}}"
+_HTML_THEME_MARKER    = "{{DEFAULT_THEME}}"
+
+
+def _default_theme() -> str:
+    """A szerver által ajánlott alap-téma. A user localStorage-a felülírja."""
+    val = AUTH_CONFIG.get("default_theme", "dark")
+    return "light" if val == "light" else "dark"
 
 
 def _serve_frontend_asset(name: str, media_type: str):
     path = FRONTEND_DIR / name
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"{name} nem található: {path}")
-    # HTML-t template-eljük, hogy a prefix mindig helyes legyen
+    # HTML-t template-eljük, hogy a prefix + default theme mindig helyes legyen
     if media_type.startswith("text/html"):
         html = path.read_text(encoding="utf-8")
         html = html.replace(_HTML_TEMPLATE_MARKER, ROOT_PATH)
+        html = html.replace(_HTML_THEME_MARKER, _default_theme())
         return HTMLResponse(content=html)
     return FileResponse(str(path), media_type=media_type)
 
@@ -203,6 +212,16 @@ def serve_projects_js():
 @app.get("/projects.css", include_in_schema=False)
 def serve_projects_css():
     return _serve_frontend_asset("projects.css", "text/css")
+
+
+@app.get("/theme.css", include_in_schema=False)
+def serve_theme_css():
+    return _serve_frontend_asset("theme.css", "text/css")
+
+
+@app.get("/theme.js", include_in_schema=False)
+def serve_theme_js():
+    return _serve_frontend_asset("theme.js", "application/javascript")
 
 
 @app.get("/projects", include_in_schema=False)
