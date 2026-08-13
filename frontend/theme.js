@@ -30,7 +30,11 @@
     document.documentElement.setAttribute('data-theme', theme);
     const btn = document.getElementById('theme-toggle');
     if (btn) {
-      btn.textContent = theme === 'light' ? 'Sötét' : 'Világos';
+      // Ikonok: a gomb annak a témának a jelét mutatja, amire vált (destination).
+      // Ez a webes konvenció (Wikipedia, GitHub, stb.).
+      // A `🌞` (sun with face) az egyszerű `☀`-nál jobban rendereldő emoji,
+      // színes és a `🌙`-hoz hasonló méretű minden rendszeren.
+      btn.textContent = theme === 'light' ? '🌙' : '🌞';
       btn.title = theme === 'light'
         ? 'Váltás sötét témára'
         : 'Váltás világos témára';

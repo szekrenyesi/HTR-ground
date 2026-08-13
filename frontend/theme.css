@@ -148,20 +148,20 @@
 html { background: var(--bg-page); color: var(--text-primary); }
 body { background: var(--bg-page); color: var(--text-primary); }
 
-/* ─── Theme toggle gomb (közös stílus) ────────────────────── */
+/* ─── Theme toggle gomb (ikonos: ☀/🌙) ────────────────────── */
 .theme-toggle {
   background: transparent;
-  border: 1px solid var(--border-medium);
+  border: 1px solid transparent;
   color: var(--text-secondary);
-  padding: 3px 9px;
-  border-radius: 4px;
-  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 16px;
+  line-height: 1;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
 .theme-toggle:hover {
   background: var(--bg-input);
-  color: var(--text-primary);
-  border-color: var(--border-strong);
+  border-color: var(--border-medium);
 }

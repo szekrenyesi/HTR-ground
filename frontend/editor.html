@@ -69,7 +69,14 @@
   </div>
   <div id="project-info" style="display:none"></div>
   <div id="status">Nincs betöltve fájl</div>
-  <button type="button" class="theme-toggle" id="theme-toggle">Világos</button>
+
+  <!-- Szöveg-zoom a jobb szélen — a téma-toggle innen kikerült,
+       a téma választása a többi oldalról öröklődik localStorage-ból -->
+  <div id="text-zoom-controls">
+    <button class="zoom-btn" id="text-zoom-out" title="Kisebb szöveg (Ctrl+scroll)">−</button>
+    <span id="text-zoom-label" title="Alapméret visszaállítása">Aa 100%</span>
+    <button class="zoom-btn" id="text-zoom-in" title="Nagyobb szöveg (Ctrl+scroll)">+</button>
+  </div>
 </div>
 
 <div id="main">
@@ -90,10 +97,12 @@
   </div>
 
   <div id="text-panel">
-    <div id="empty-state">
-      <div class="big">📜</div>
-      <div class="title">HTR kimenet javítása</div>
-      <div class="hint">Tölts be egy JSON fájlt (és opcionálisan a hozzá tartozó képet) a szerkesztés megkezdéséhez.</div>
+    <div id="text-panel-body">
+      <div id="empty-state">
+        <div class="big">📜</div>
+        <div class="title">HTR kimenet javítása</div>
+        <div class="hint">Tölts be egy JSON fájlt (és opcionálisan a hozzá tartozó képet) a szerkesztés megkezdéséhez.</div>
+      </div>
     </div>
   </div>
 </div>

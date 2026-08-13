@@ -23,6 +23,19 @@ let imgContrast = 1.0;
 let dimContext  = true;   // sor kiemelése a kontextushoz képest (alapból be)
 const CONTRAST_STEPS = [1.0, 1.5, 2.0, 3.0];
 
+// ─── Szöveg-zoom (jobb panel) ──────────────────────────────
+// A .line-input font-mérete egy CSS változóból jön (--text-line-size).
+// A választás localStorage-ban tárolódik.
+const TEXT_ZOOM_STEPS  = [11, 12, 13.5, 15, 17, 20, 24, 28, 34];
+const TEXT_ZOOM_DEFAULT = 2;  // 13.5 az alap
+let textZoomIndex = TEXT_ZOOM_DEFAULT;
+try {
+  const saved = parseInt(localStorage.getItem('htrground-text-zoom'), 10);
+  if (!isNaN(saved) && saved >= 0 && saved < TEXT_ZOOM_STEPS.length) {
+    textZoomIndex = saved;
+  }
+} catch (_) {}
+
 let loadedFilename = null;   // a betöltött fájl neve — mentés basename-jéhez
 let loadedImageBlob = null;  // a betöltött kép Blob-ja — PDF exporthoz kell
 
@@ -68,6 +81,7 @@ const overlay         = document.getElementById('overlay');
 const imgCont         = document.getElementById('image-container');
 const noImgHint       = document.getElementById('no-image-hint');
 const textPanel       = document.getElementById('text-panel');
+const textPanelBody   = document.getElementById('text-panel-body');
 const statusEl        = document.getElementById('status');
 const saveBtn         = document.getElementById('save-btn');
 const zoomLabel       = document.getElementById('zoom-label');
@@ -322,9 +336,37 @@ detailCanvas.addEventListener('wheel', e => {
   if (e.deltaY < 0) zoomIn(); else zoomOut();
 }, { passive: false });
 
+// ─── Text-zoom (jobb panel) ────────────────────────────────
+function applyTextZoom() {
+  const px = TEXT_ZOOM_STEPS[textZoomIndex];
+  document.documentElement.style.setProperty('--text-line-size', px + 'px');
+  const label = document.getElementById('text-zoom-label');
+  if (label) {
+    const pct = Math.round(px / TEXT_ZOOM_STEPS[TEXT_ZOOM_DEFAULT] * 100);
+    label.textContent = 'Aa ' + pct + '%';
+  }
+  try { localStorage.setItem('htrground-text-zoom', String(textZoomIndex)); } catch(_) {}
+}
+function textZoomIn()  { if (textZoomIndex < TEXT_ZOOM_STEPS.length - 1) { textZoomIndex++; applyTextZoom(); } }
+function textZoomOut() { if (textZoomIndex > 0) { textZoomIndex--; applyTextZoom(); } }
+function textZoomReset() { textZoomIndex = TEXT_ZOOM_DEFAULT; applyTextZoom(); }
+
+document.getElementById('text-zoom-in').addEventListener('click', textZoomIn);
+document.getElementById('text-zoom-out').addEventListener('click', textZoomOut);
+document.getElementById('text-zoom-label').addEventListener('click', textZoomReset);
+
+// Ctrl+scroll a szövegpanelben — nagyítás/kicsinyítés
+textPanel.addEventListener('wheel', e => {
+  if (!e.ctrlKey) return;
+  e.preventDefault();
+  if (e.deltaY < 0) textZoomIn(); else textZoomOut();
+}, { passive: false });
+
+applyTextZoom();
+
 // ─── Text panel rendering ───────────────────────────────────────
 function renderTextPanel() {
-  textPanel.innerHTML = '';
+  textPanelBody.innerHTML = '';
   if (!data) return;
 
   data.regions.forEach((region, ri) => {
@@ -386,7 +428,7 @@ function renderTextPanel() {
       block.appendChild(row);
     });
 
-    textPanel.appendChild(block);
+    textPanelBody.appendChild(block);
   });
 }
 

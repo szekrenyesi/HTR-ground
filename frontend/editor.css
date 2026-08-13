@@ -162,6 +162,23 @@ input[type=file] { display: none; }
 
 /* ── Text panel ── */
 #text-panel { flex: 1; overflow-y: auto; padding: 10px 12px; }
+#text-panel-body {
+  /* A JS ide rendereli a régiókat / sorokat. */
+}
+
+/* ── Text-zoom controls a fő toolbar-ban (jobb szélen, #status után) ── */
+#text-zoom-controls {
+  display: flex; align-items: center; gap: 3px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+#text-zoom-label {
+  font-size: 11px; color: var(--text-muted);
+  min-width: 62px; text-align: center;
+  cursor: pointer; padding: 3px 4px; border-radius: 3px;
+  user-select: none;
+}
+#text-zoom-label:hover { background: var(--bg-input); color: var(--text-primary); }
 
 #empty-state {
   display: flex; flex-direction: column; align-items: center;
@@ -190,13 +207,16 @@ input[type=file] { display: none; }
 .line-row.selected { background: var(--bg-panel); border-color: rgba(255, 200, 50, 0.45); }
 
 .line-num {
-  font-size: 10px; color: var(--text-very-faint); min-width: 22px;
+  font-size: calc(var(--text-line-size, 13.5px) * 0.74);
+  color: var(--text-very-faint);
+  min-width: calc(var(--text-line-size, 13.5px) * 1.63);
   text-align: right; flex-shrink: 0; user-select: none;
 }
 .line-input {
   flex: 1; background: transparent; border: none;
   border-bottom: 1px solid transparent;
-  color: var(--text-content); font-size: 13.5px;
+  color: var(--text-content);
+  font-size: var(--text-line-size, 13.5px);
   font-family: 'Georgia', 'Times New Roman', serif;
   padding: 2px 3px; outline: none;
 }

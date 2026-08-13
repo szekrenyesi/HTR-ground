@@ -58,20 +58,24 @@ def test_default_theme_meta_invalid_falls_back_to_dark(anon_client):
         del auth.AUTH_CONFIG["default_theme"]
 
 
-def test_all_html_pages_have_theme_toggle(anon_client, logged_in_client):
-    """Minden HTML oldal head-jében legyen theme.js és toggle gomb."""
+def test_all_html_pages_have_theme_js(anon_client, logged_in_client):
+    """Minden HTML oldal head-jében legyen theme.js (a téma azonos élményhez
+    öröklődik). A toggle gomb csak a landing/login/projects-en van (nem az
+    editorban)."""
     # Landing
     r = anon_client.get("/")
+    assert 'theme.js'    in r.text
     assert 'theme-toggle' in r.text
-    assert 'theme.js' in r.text
     # Login
     r = anon_client.get("/login")
+    assert 'theme.js'    in r.text
     assert 'theme-toggle' in r.text
-    # Demo (editor)
+    # Demo (editor) — theme.js igen, toggle NEM
     r = anon_client.get("/demo")
-    assert 'theme-toggle' in r.text
+    assert 'theme.js'    in r.text
+    assert 'theme-toggle' not in r.text
     # Projects
     r = logged_in_client.get("/projects", follow_redirects=False)
-    # A projects requires_auth_or_redirect — belépve 200
     assert r.status_code == 200
+    assert 'theme.js'    in r.text
     assert 'theme-toggle' in r.text
